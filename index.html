@@ -358,6 +358,49 @@ var SF0=[
 var fm=function(n){return n.toLocaleString("it-IT",{minimumFractionDigits:2,maximumFractionDigits:2});};
 var f0=function(n){return Math.round(n).toLocaleString("it-IT");};
 var mkId=function(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);};
+// ===== SYNC ONLINE (JSONBin) =====
+var JB_KEY=function(){return localStorage.getItem("jb-key")||"";};
+var JB_BIN=function(){return localStorage.getItem("jb-bin")||"";};
+function jbCreate(cb){
+  var xhr=new XMLHttpRequest();
+  xhr.open("POST","https://api.jsonbin.io/v3/b",true);
+  xhr.setRequestHeader("Content-Type","application/json");
+  xhr.setRequestHeader("X-Master-Key",JB_KEY());
+  xhr.setRequestHeader("X-Bin-Name","budget-famiglia");
+  xhr.onreadystatechange=function(){
+    if(xhr.readyState===4){
+      if(xhr.status===200){try{var r=JSON.parse(xhr.responseText);cb(r.metadata.id);}catch(ex){cb(null);}}
+      else cb(null);
+    }
+  };
+  xhr.send(JSON.stringify({spV:[],resid:0,ver:1}));
+}
+function jbRead(cb){
+  var bin=JB_BIN();if(!bin){cb(null);return;}
+  var xhr=new XMLHttpRequest();
+  xhr.open("GET","https://api.jsonbin.io/v3/b/"+bin+"/latest",true);
+  xhr.setRequestHeader("X-Master-Key",JB_KEY());
+  xhr.onreadystatechange=function(){
+    if(xhr.readyState===4){
+      if(xhr.status===200){try{var r=JSON.parse(xhr.responseText);cb(r.record);}catch(ex){cb(null);}}
+      else cb(null);
+    }
+  };
+  xhr.send();
+}
+function jbWrite(data){
+  var bin=JB_BIN();if(!bin)return;
+  var xhr=new XMLHttpRequest();
+  xhr.open("PUT","https://api.jsonbin.io/v3/b/"+bin,true);
+  xhr.setRequestHeader("Content-Type","application/json");
+  xhr.setRequestHeader("X-Master-Key",JB_KEY());
+  xhr.send(JSON.stringify(data));
+}
+function jbMergeSpese(local,remote){
+  if(!remote)return local;
+  var ids={};local.forEach(function(s){ids[s.id]=true;});
+  return local.concat(remote.filter(function(s){return !ids[s.id];}));
+}
 function ciclo31(gp){
   var og=new Date();og.setHours(0,0,0,0);
   var ini=og.getDate()>=gp?new Date(og.getFullYear(),og.getMonth(),gp):new Date(og.getFullYear(),og.getMonth()-1,gp);
@@ -396,6 +439,15 @@ function App(){
   var _im=us(""),impStr=_im[0],setImpStr=_im[1];
   var _si=us(false),showImp=_si[0],setShowImp=_si[1];
   var _lr=us(0),lastRic=_lr[0],setLastRic=_lr[1];
+  var _jbSetup=us(!!(JB_KEY()&&JB_BIN())),jbReady=_jbSetup[0],setJbReady=_jbSetup[1];
+  var _online=us(false),online=_online[0],setOnline=_online[1];
+  var _setupStep=us(JB_KEY()?"bin":"key"),setupStep=_setupStep[0],setSetupStep=_setupStep[1];
+  var _keyIn=us(""),keyIn=_keyIn[0],setKeyIn=_keyIn[1];
+  var _binIn=us(""),binIn=_binIn[0],setBinIn=_binIn[1];
+  var _busy=us(false),busy=_busy[0],setBusy=_busy[1];
+  var _msg=us(""),msg=_msg[0],setMsg=_msg[1];
+  var spVRef=React.useRef(spV);
+  ue(function(){spVRef.current=spV;},[spV]);
 
   // Load: da localStorage + controlla se URL ha dati (#import=...)
   ue(function(){
@@ -426,8 +478,80 @@ function App(){
     setOk(true);
   },[]);
 
-  // Save
+  // Save locale
   ue(function(){if(ok)saveLS({stip:stip,resid:resid,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum});},[stip,resid,gPaga,sf,spV,pctR,syncNum,ok]);
+  // Save ONLINE (se configurato)
+  ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,gPaga,sf,spV,pctR,ok,jbReady]);
+  // Leggi ONLINE ogni 8 secondi + merge
+  ue(function(){
+    if(!jbReady)return;
+    var iv=setInterval(function(){
+      jbRead(function(d){
+        if(d){
+          setOnline(true);
+          var merged=jbMergeSpese(spVRef.current,d.spV||[]);
+          if(merged.length!==spVRef.current.length)setSpV(merged);
+          if(d.resid!==undefined)setResid(d.resid);
+          if(d.sf)setSf(d.sf);
+        }else{setOnline(false);}
+      });
+    },8000);
+    return function(){clearInterval(iv);};
+  },[jbReady]);
+
+  // SETUP SYNC — se non ancora configurato
+  if(!jbReady){
+    return e("div",{style:{background:C.bg,minHeight:"100vh",padding:20}},
+      e("div",{style:{background:C.cd,borderRadius:16,padding:24,maxWidth:400,margin:"20px auto",boxShadow:"0 2px 8px rgba(0,0,0,.1)"}},
+        e("div",{style:{fontSize:32,textAlign:"center",marginBottom:8}},"\u{1F517}"),
+        e("div",{style:{fontSize:20,fontWeight:900,color:C.gD,textAlign:"center",marginBottom:6}},"Collega i due telefoni"),
+        setupStep==="key"?e("div",null,
+          e("div",{style:{background:C.gL,borderRadius:12,padding:14,fontSize:14,lineHeight:1.7,marginBottom:16,color:C.gD}},
+            e("div",{style:{fontWeight:800,marginBottom:6}},"\u{1F511} PASSO 1: la chiave"),
+            e("div",null,"1. Apri ",e("a",{href:"https://jsonbin.io",target:"_blank",style:{color:C.bl,fontWeight:700}},"jsonbin.io")),
+            e("div",null,"2. Tocca ",e("b",null,"Login"),", entra con Google o GitHub"),
+            e("div",null,"3. Tocca ",e("b",null,"API KEYS"),", copia la ",e("b",null,"MASTER KEY")),
+            e("div",null,"4. Torna qui e incollala sotto \u{1F447}")
+          ),
+          e("input",{value:keyIn,onChange:function(ev){setKeyIn(ev.target.value);},placeholder:"Incolla qui la MASTER KEY",style:{width:"100%",padding:12,borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,marginBottom:12,boxSizing:"border-box"}}),
+          e("button",{onClick:function(){
+            if(!keyIn.trim()){setMsg("Incolla prima la chiave");return;}
+            localStorage.setItem("jb-key",keyIn.trim());
+            setMsg("");setSetupStep("bin");
+          },style:{width:"100%",padding:14,borderRadius:12,border:"none",background:C.gn,color:"#fff",fontWeight:800,fontSize:16,cursor:"pointer"}},"Avanti \u2192"),
+          msg?e("div",{style:{marginTop:10,color:C.rd,textAlign:"center",fontWeight:600}},msg):null
+        ):e("div",null,
+          e("div",{style:{background:C.bL,borderRadius:12,padding:14,fontSize:14,lineHeight:1.7,marginBottom:16,color:C.gD}},
+            e("div",{style:{fontWeight:800,marginBottom:6}},"\u{1F46A} PASSO 2: il codice famiglia"),
+            e("div",null,e("b",null,"Sei il PRIMO")," che configura (di solito il marito)?"),
+            e("div",{style:{marginTop:4}},"\u2192 Tocca ",e("b",null,"\"Crea nuovo\"")," qui sotto. Ti dar\u00e0 un CODICE da dire all'altro."),
+            e("div",{style:{marginTop:8}},e("b",null,"L'altro telefono")," ha gi\u00e0 il codice?"),
+            e("div",{style:{marginTop:4}},"\u2192 Scrivilo nella casella e tocca ",e("b",null,"\"Collega\"."))
+          ),
+          e("button",{onClick:function(){
+            setBusy(true);setMsg("Creo il quaderno condiviso...");
+            jbCreate(function(id){
+              setBusy(false);
+              if(id){
+                localStorage.setItem("jb-bin",id);
+                setMsg("");setJbReady(true);
+                setTimeout(function(){alert("\u2705 Fatto! Il tuo CODICE FAMIGLIA \u00e8:\n\n"+id+"\n\nDillo all'altro telefono (a voce o WhatsApp), lo user\u00e0 per collegarsi.");},300);
+              }else{setMsg("Errore: controlla che la chiave sia giusta");}
+            });
+          },disabled:busy,style:{width:"100%",padding:14,borderRadius:12,border:"none",background:C.gn,color:"#fff",fontWeight:800,fontSize:16,cursor:"pointer",marginBottom:12,opacity:busy?0.5:1}},busy?"Attendi...":"\u2795 Crea nuovo (primo telefono)"),
+          e("div",{style:{textAlign:"center",color:C.mu,fontSize:13,marginBottom:12}},"\u2014 oppure \u2014"),
+          e("input",{value:binIn,onChange:function(ev){setBinIn(ev.target.value);},placeholder:"Incolla il CODICE FAMIGLIA",style:{width:"100%",padding:12,borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,marginBottom:8,boxSizing:"border-box"}}),
+          e("button",{onClick:function(){
+            if(!binIn.trim()){setMsg("Incolla il codice famiglia");return;}
+            localStorage.setItem("jb-bin",binIn.trim());
+            setJbReady(true);
+          },style:{width:"100%",padding:14,borderRadius:12,border:"none",background:C.bl,color:"#fff",fontWeight:800,fontSize:16,cursor:"pointer"}},"\u{1F517} Collega (secondo telefono)"),
+          msg?e("div",{style:{marginTop:10,color:busy?C.mu:C.rd,textAlign:"center",fontWeight:600}},msg):null,
+          e("button",{onClick:function(){localStorage.removeItem("jb-key");setSetupStep("key");},style:{width:"100%",marginTop:12,padding:8,background:"none",border:"none",color:C.mu,fontSize:13,cursor:"pointer",textDecoration:"underline"}},"\u2190 Rimetti la chiave")
+        )
+      )
+    );
+  }
 
   // User setup
   if(!user){
@@ -504,7 +628,7 @@ function App(){
     e("div",{style:{padding:"14px 6px 6px",textAlign:"center"}},
       e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
         e("span",{style:{fontSize:12,fontWeight:700,color:user==="Alfio"?C.gn:C.pu,background:user==="Alfio"?C.gL:C.pL,borderRadius:8,padding:"4px 10px"}},(user==="Alfio"?"\u{1F468} ":"\u{1F469} ")+user),
-        e("span",{style:{fontSize:11,fontWeight:700,color:C.mu,background:C.ln,borderRadius:8,padding:"4px 10px"}},"Inviato #"+syncNum+" \u00B7 Ricevuto #"+lastRic)
+        e("span",{style:{fontSize:11,fontWeight:700,color:C.mu,background:C.ln,borderRadius:8,padding:"4px 10px"}},(online?"\u{1F7E2} Sincronizzato":"\u26AA Offline"))
       ),
       e("div",{style:{fontSize:11,fontWeight:700,color:C.gn,letterSpacing:2}},"BUDGET FAMIGLIA"),
       e("div",{style:{fontSize:26,fontWeight:900,color:C.gD,marginTop:2}},"\u{1F4B0} \u20AC "+fm(base)+(resid>0?" (residuo)":"")),
