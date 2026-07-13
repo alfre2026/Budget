@@ -718,6 +718,9 @@ function App(){
   var rispQuota=Math.max(0,Math.min(tassa,bOggi));
   var budgetParz=bOggi-rispQuota;
   var restaParz=budgetParz-tOggi;
+  // Quanto RESTA live: la spesa consuma prima il parziale, poi intacca il risparmio
+  var parzResto=Math.max(0,budgetParz-tOggi);
+  var rispResto=Math.max(0,rispQuota-Math.max(0,tOggi-budgetParz));
   // Montepremi (proiezione autentica): risparmio gia messo via realmente + (giorni rimanenti inclusa oggi x tassa)
   var montepremi=salvCiclo+(gDiv*tassa);
   var euroPersi=persiGiorni*tassa;
@@ -825,20 +828,23 @@ function App(){
       e("div",{style:{display:"flex",gap:8,marginBottom:12,alignItems:"stretch"}},
         e("div",{style:{flex:1.5,background:restaOggi>=0?C.gL:C.rL,borderRadius:14,padding:"12px 8px",textAlign:"center",border:"2px solid "+(restaOggi>=0?C.gn:C.rd)+"40"}},
           e("div",{style:{fontSize:11,fontWeight:700,color:C.mu,marginBottom:6}},"OGGI TI RESTANO"),
-          e("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"center",gap:3}},
+          restaOggi>=0?e("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"center",gap:3}},
             e("div",null,
-              e("div",{style:{fontSize:26,fontWeight:900,color:restaParz>=0?C.gn:C.rd,lineHeight:1}},"\u20AC"+fm(budgetParz)),
+              e("div",{style:{fontSize:26,fontWeight:900,color:parzResto>0?C.gn:C.mu,lineHeight:1}},"\u20AC"+fm(parzResto)),
               e("div",{style:{fontSize:9,color:C.mu,marginTop:2}},"budget parziale")
             ),
             e("div",{style:{fontSize:16,fontWeight:900,color:C.mu,marginTop:3}},"+"),
             e("div",null,
-              e("div",{style:{fontSize:18,fontWeight:900,color:C.gd,lineHeight:1,marginTop:5}},"\u20AC"+fm(rispQuota)),
+              e("div",{style:{fontSize:18,fontWeight:900,color:rispResto>0?C.gd:C.mu,lineHeight:1,marginTop:5}},"\u20AC"+fm(rispResto)),
               e("div",{style:{fontSize:9,color:C.mu,marginTop:2}},"risparmio")
             )
+          ):e("div",null,
+            e("div",{style:{fontSize:30,fontWeight:900,color:C.rd,lineHeight:1}},"\u2212\u20AC"+fm(Math.abs(restaOggi))),
+            e("div",{style:{fontSize:9,color:C.rd,fontWeight:700,marginTop:2}},"in negativo")
           ),
           e("div",{style:{fontSize:10,color:C.mu,marginTop:6}},"spesi \u20AC"+fm(tOggi)),
           e("div",{style:{background:"#fff",borderRadius:8,height:8,overflow:"hidden",marginTop:5}},
-            e("div",{style:{width:Math.min(100,budgetParz>0?tOggi/budgetParz*100:0)+"%",height:"100%",background:tOggi>budgetParz?C.rd:C.gn,borderRadius:8}})
+            e("div",{style:{width:Math.min(100,bOggi>0?tOggi/bOggi*100:0)+"%",height:"100%",background:tOggi>bOggi?C.rd:(tOggi>budgetParz?C.gd:C.gn),borderRadius:8}})
           )
         ),
         e("div",{style:{flex:1,background:"#fdf6e3",borderRadius:14,padding:"12px 8px",textAlign:"center",border:"2px solid "+C.gd}},
