@@ -804,6 +804,38 @@ function App(){
 
     // HOME
     tab==="home"?e("div",null,
+      // BUDGET DI OGGI FISSO: quanto resta su quanto
+      e("div",{style:{background:restaOggi>=0?C.gL:C.rL,borderRadius:14,padding:16,marginBottom:12,textAlign:"center",border:"2px solid "+(restaOggi>=0?C.gn:C.rd)+"40"}},
+        e("div",{style:{fontSize:13,fontWeight:700,color:C.mu,marginBottom:4}},"OGGI TI RESTANO"),
+        e("div",{style:{fontSize:34,fontWeight:900,color:restaOggi>=0?C.gn:C.rd}},"\u20AC "+fm(restaOggi)),
+        e("div",{style:{fontSize:13,color:C.mu}},"su \u20AC "+fm(bOggi)+" di budget \u00b7 spesi \u20AC "+fm(tOggi)),
+        // Barra
+        e("div",{style:{background:"#fff",borderRadius:8,height:10,overflow:"hidden",marginTop:8}},
+          e("div",{style:{width:Math.min(100,bOggi>0?tOggi/bOggi*100:0)+"%",height:"100%",background:restaOggi>=0?C.gn:C.rd,borderRadius:8}})
+        )
+      ),
+      // ALLARME SFORO + avviso domani
+      sforoOggi>0?e("div",{style:{background:C.rL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center",border:"2px solid "+C.rd}},
+        e("div",{style:{fontSize:30}},"\u{1F534}"),
+        e("div",{style:{fontSize:16,fontWeight:900,color:C.rd}},"Sei \u20AC "+fm(sforoOggi)+" in negativo!"),
+        e("div",{style:{fontSize:13,color:C.rd,marginTop:6,fontWeight:700,background:"#fff",borderRadius:8,padding:"8px 10px"}},"\u26A0\uFE0F Da domani il budget scende a \u20AC "+fm(bDomani)+" ("+(deltaDomani>=0?"+":"")+"\u20AC "+fm(deltaDomani)+"/gg)")
+      ):(avanzoOggi>0?e("div",{style:{background:C.gL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center",border:"2px solid "+C.gn}},
+        e("div",{style:{fontSize:30}},"\u{1F60A}"),
+        e("div",{style:{fontSize:15,fontWeight:900,color:C.gn}},"Bravo! Stai risparmiando"),
+        e("div",{style:{fontSize:13,color:C.gn,marginTop:6,fontWeight:700,background:"#fff",borderRadius:8,padding:"8px 10px"}},"\u{1F4C8} Da domani il budget sale a \u20AC "+fm(bDomani)+" (+\u20AC "+fm(deltaDomani)+"/gg)")
+      ):null),
+      e("div",{style:{display:"flex",gap:8,marginBottom:10}},
+        e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
+          e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4D0} Budget iniziale"),
+          e("div",{style:{fontSize:20,fontWeight:800,color:C.pu}},"\u20AC "+fm(bIni)),
+          e("div",{style:{fontSize:10,color:C.mu}},"di partenza")
+        ),
+        e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
+          e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4C5} Budget di oggi"),
+          e("div",{style:{fontSize:20,fontWeight:800,color:C.gD}},"\u20AC "+fm(bOggi)),
+          e("div",{style:{fontSize:10,color:C.mu}},"residuo \u20AC"+f0(residLive)+" \u00b7 "+gDiv+" gg")
+        )
+      ),
       // FORMULA: Stipendio - Fisse = Disponibile / 31
       e("div",{style:{background:C.cd,borderRadius:14,padding:"14px 12px",marginBottom:10,borderLeft:"4px solid "+C.nv}},
         e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginBottom:10,textAlign:"center"}},"\u{1F9EE} Come nasce il tuo budget"),
@@ -870,38 +902,6 @@ function App(){
           )
         ):null
       ),
-      e("div",{style:{display:"flex",gap:8,marginBottom:10}},
-        e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
-          e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4D0} Budget iniziale"),
-          e("div",{style:{fontSize:20,fontWeight:800,color:C.pu}},"\u20AC "+fm(bIni)),
-          e("div",{style:{fontSize:10,color:C.mu}},"di partenza")
-        ),
-        e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
-          e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4C5} Budget di oggi"),
-          e("div",{style:{fontSize:20,fontWeight:800,color:C.gD}},"\u20AC "+fm(bOggi)),
-          e("div",{style:{fontSize:10,color:C.mu}},"residuo \u20AC"+f0(residLive)+" \u00b7 "+gDiv+" gg")
-        )
-      ),
-      // BUDGET DI OGGI FISSO: quanto resta su quanto
-      e("div",{style:{background:restaOggi>=0?C.gL:C.rL,borderRadius:14,padding:16,marginBottom:12,textAlign:"center",border:"2px solid "+(restaOggi>=0?C.gn:C.rd)+"40"}},
-        e("div",{style:{fontSize:13,fontWeight:700,color:C.mu,marginBottom:4}},"OGGI TI RESTANO"),
-        e("div",{style:{fontSize:34,fontWeight:900,color:restaOggi>=0?C.gn:C.rd}},"\u20AC "+fm(restaOggi)),
-        e("div",{style:{fontSize:13,color:C.mu}},"su \u20AC "+fm(bOggi)+" di budget \u00b7 spesi \u20AC "+fm(tOggi)),
-        // Barra
-        e("div",{style:{background:"#fff",borderRadius:8,height:10,overflow:"hidden",marginTop:8}},
-          e("div",{style:{width:Math.min(100,bOggi>0?tOggi/bOggi*100:0)+"%",height:"100%",background:restaOggi>=0?C.gn:C.rd,borderRadius:8}})
-        )
-      ),
-      // ALLARME SFORO + avviso domani
-      sforoOggi>0?e("div",{style:{background:C.rL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center",border:"2px solid "+C.rd}},
-        e("div",{style:{fontSize:30}},"\u{1F534}"),
-        e("div",{style:{fontSize:16,fontWeight:900,color:C.rd}},"Sei \u20AC "+fm(sforoOggi)+" in negativo!"),
-        e("div",{style:{fontSize:13,color:C.rd,marginTop:6,fontWeight:700,background:"#fff",borderRadius:8,padding:"8px 10px"}},"\u26A0\uFE0F Da domani il budget scende a \u20AC "+fm(bDomani)+" ("+(deltaDomani>=0?"+":"")+"\u20AC "+fm(deltaDomani)+"/gg)")
-      ):(avanzoOggi>0?e("div",{style:{background:C.gL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center",border:"2px solid "+C.gn}},
-        e("div",{style:{fontSize:30}},"\u{1F60A}"),
-        e("div",{style:{fontSize:15,fontWeight:900,color:C.gn}},"Bravo! Stai risparmiando"),
-        e("div",{style:{fontSize:13,color:C.gn,marginTop:6,fontWeight:700,background:"#fff",borderRadius:8,padding:"8px 10px"}},"\u{1F4C8} Da domani il budget sale a \u20AC "+fm(bDomani)+" (+\u20AC "+fm(deltaDomani)+"/gg)")
-      ):null),
       // TASSA RISPARMIO + salvadanaio
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
         e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
