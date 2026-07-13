@@ -648,34 +648,38 @@ function App(){
   var dRisp=sf.filter(function(s){return getEff(s)!==null;}).map(function(s){var ee=getEff(s);return{d:s.prev-ee};});
   var tDiff=dRisp.reduce(function(a,x){return a+x.d;},0);
   var fR=tDiff*(pctR/100),fS=tDiff*((100-pctR)/100);
-  var dIni=stip-tFP,bIni=dIni/31,dReal=base-tFE;
+  // ===== MODELLO RESIDUO / GIORNI RIMANENTI (senza carry) =====
+  // Budget iniziale di RIFERIMENTO: (stipendio - spese fisse) / 31, sempre basato sullo stipendio
+  var dIni=stip-tFE,bIni=dIni/31;
+  // Disponibile per il variabile: se ho scritto un residuo manuale (Soldi reali) parto da quello, altrimenti dallo stipendio
+  var dispoVar=resid>0?(resid-tFE):(stip-tFE);
+  var dReal=dispoVar;
   var ogS=new Date().toLocaleDateString("it-IT");
-  // Spese variabili TOTALI (tutte tranne quelle collegate a voci fisse e le "rotture salvadanaio")
-  var tExtra=spV.filter(function(s){return !s.fId && !s.fromSalv;}).reduce(function(a,x){return a+x.imp;},0);
-  var rim=dReal-tExtra;
-  // BUDGET DI BASE giornaliero (disponibile diviso giorni), poi aggiustato dal carry
-  var bBase=ci.gR>0?rim/ci.gR:rim;
-  // Budget di oggi = base + carry (carry negativo se ho sforato, positivo se ho avanzato)
-  var bOggi=bBase+carry;
-  // Spese SOLO di oggi (variabili, non fisse, non da salvadanaio)
+  // Spese variabili (escluse le fisse e i prelievi dal salvadanaio)
+  var speseVarPrimaOggi=spV.filter(function(s){return !s.fId && !s.fromSalv && s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
   var speseOggiArr=spV.filter(function(s){return s.data===ogS && !s.fId && !s.fromSalv;});
   var tOggi=speseOggiArr.reduce(function(a,x){return a+x.imp;},0);
-  // Rimanenza di oggi (budget oggi fisso - speso oggi)
+  var tExtra=speseVarPrimaOggi+tOggi;
+  // Residuo a INIZIO giornata (prima delle spese di oggi) e residuo LIVE (aggiornato ad ogni spesa)
+  var residInizioOggi=dispoVar-speseVarPrimaOggi;
+  var residLive=dispoVar-tExtra;
+  var rim=residLive;
+  var base=resid>0?resid:stip;
+  // Giorni per la divisione = giorni rimanenti del ciclo
+  var gDiv=ci.gR>0?ci.gR:1;
+  // BUDGET DI OGGI = residuo(inizio giornata) / giorni rimanenti  -> resta FISSO durante la giornata
+  var bOggi=residInizioOggi/gDiv;
+  // OGGI TI RESTANO = budget di oggi - speso oggi  (UNA sola sottrazione: niente doppio conteggio)
   var restaOggi=bOggi-tOggi;
-  // Quanto ho risparmiato oggi verso la tassa (da 0 a tassa)
   var rispOggi=Math.max(0,Math.min(tassa,restaOggi));
-  // Sforo di oggi (se ho speso piu del budget)
   var sforoOggi=restaOggi<0?Math.abs(restaOggi):0;
-  // Budget PREVISTO per domani (se chiudessi ora): base ricalcolata + effetto sforo/avanzo spalmato
-  var giorniProssimi=Math.max(1,ci.gR-1);
-  var avanzoOggi=restaOggi>tassa?(restaOggi-tassa):0; // avanzo oltre la tassa
-  var carryDomani=carry;
-  if(sforoOggi>0){carryDomani=carry-(sforoOggi/giorniProssimi);}
-  else if(avanzoOggi>0){carryDomani=carry+(avanzoOggi/giorniProssimi);}
-  var bDomani=bBase+carryDomani;
+  var avanzoOggi=restaOggi>tassa?(restaOggi-tassa):0;
+  // Previsione di DOMANI: il residuo che avanza dopo oggi, diviso i giorni che restano dopo oggi
+  var giorniDomani=Math.max(1,ci.gR-1);
+  var bDomani=residLive/giorniDomani;
   var deltaDomani=bDomani-bOggi;
   var mEff=ci.gP>0?tExtra/ci.gP:0;
-  var bAlim=ci.gR>0?Math.max(0,dReal-tExtra)/ci.gR:0;
+  var bAlim=residLive>0?residLive/gDiv:0;
   var dB=bOggi-bIni,bUp=dB>0.5,bDn=dB<-0.5;
   // ===== CHIUSURA GIORNALIERA AUTOMATICA (a mezzanotte / al primo avvio del giorno nuovo) =====
   ue(function(){
@@ -684,23 +688,16 @@ function App(){
       localStorage.setItem("last-day",ogS);setLastDay(ogS);return;
     }
     if(lastDay!==ogS){
-      // E' un nuovo giorno! Chiudo il giorno precedente.
-      // Ricalcolo cosa e' successo IERI usando le spese di ieri (lastDay)
+      // E' un nuovo giorno! Chiudo il giorno precedente (IERI = lastDay).
+      // Budget di ieri = residuo(inizio ieri) / giorni che restavano ieri
       var speseIeri=spV.filter(function(s){return s.data===lastDay && !s.fId && !s.fromSalv;}).reduce(function(a,x){return a+x.imp;},0);
-      var budgetIeri=bBase+carry; // budget che valeva ieri
+      var speseVarPrimaIeri=spV.filter(function(s){return !s.fId && !s.fromSalv && s.data!==lastDay && s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
+      var gIeri=Math.max(1,ci.gR+1);
+      var budgetIeri=(dispoVar-speseVarPrimaIeri)/gIeri;
       var restaIeri=budgetIeri-speseIeri;
-      // 1) Risparmio verso salvadanaio (da 0 a tassa)
+      // Risparmio verso salvadanaio (da 0 a tassa): quello che avanzo fino all'obiettivo va messo via
       var rispIeri=Math.max(0,Math.min(tassa,restaIeri));
       if(rispIeri>0)setSalvRisp(function(v){return v+rispIeri;});
-      // 2) Aggiorna carry: sforo si spalma in negativo, avanzo (oltre tassa) in positivo
-      var giorniR=Math.max(1,ci.gR);
-      if(restaIeri<0){
-        var sf2=Math.abs(restaIeri);
-        setCarry(function(v){return v-(sf2/giorniR);});
-      }else{
-        var avz=restaIeri-rispIeri; // quello che avanza oltre il risparmio messo via
-        if(avz>0)setCarry(function(v){return v+(avz/giorniR);});
-      }
       localStorage.setItem("last-day",ogS);setLastDay(ogS);
     }
   },[ok,ogS,lastDay]);
@@ -715,7 +712,6 @@ function App(){
     setRompiImp(0);setRompiDesc("");setRompiOpen(false);
     setTimeout(function(){alert("\u{1F416} Salvadanaio rotto! Hai preso \u20AC"+fm(rompiImp)+" per: "+(rompiDesc||"spesa")+"\n\nNon incide sul budget.");},200);
   }
-  var tOggi=spV.filter(function(s){return s.data===ogS;}).reduce(function(a,x){return a+x.imp;},0);
   var fisseDisp=sf.filter(function(s){return !s.blind;});
 
   // INVIO WHATSAPP con numero progressivo
@@ -775,9 +771,9 @@ function App(){
       e("div",{style:{background:C.cd,borderRadius:14,padding:"14px 12px",marginBottom:10,borderLeft:"4px solid "+C.nv}},
         e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginBottom:10,textAlign:"center"}},"\u{1F9EE} Come nasce il tuo budget"),
         e("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap"}},
-          e("div",{style:{background:resid>0?C.aL:C.gL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
-            e("div",{style:{fontSize:9,color:C.mu}},resid>0?"Residuo":"Stipendio"),
-            e("div",{style:{fontWeight:800,fontSize:14,color:resid>0?C.aD:C.gD}},"\u20AC"+f0(base))
+          e("div",{style:{background:C.gL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
+            e("div",{style:{fontSize:9,color:C.mu}},"Stipendio"),
+            e("div",{style:{fontWeight:800,fontSize:14,color:C.gD}},"\u20AC"+f0(stip))
           ),
           e("span",{style:{fontWeight:800,color:C.mu,fontSize:16}},"\u2212"),
           e("div",{style:{background:C.bL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
@@ -787,11 +783,11 @@ function App(){
           e("span",{style:{fontWeight:800,color:C.mu,fontSize:16}},"="),
           e("div",{style:{background:C.pL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
             e("div",{style:{fontSize:9,color:C.mu}},"Disponibile"),
-            e("div",{style:{fontWeight:800,fontSize:14,color:C.pu}},"\u20AC"+f0(dReal))
+            e("div",{style:{fontWeight:800,fontSize:14,color:C.pu}},"\u20AC"+f0(dIni))
           )
         ),
         e("div",{style:{textAlign:"center",marginTop:8,fontSize:13,color:C.gD,fontWeight:700}},
-          "\u20AC"+f0(dReal)+" \u00F7 31 giorni = ",
+          "\u20AC"+f0(dIni)+" \u00F7 31 giorni = ",
           e("span",{style:{color:C.pu,fontWeight:900,fontSize:15}},"\u20AC "+fm(bIni)+"/giorno")
         )
       ),
@@ -804,7 +800,7 @@ function App(){
         e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
           e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4C5} Budget di oggi"),
           e("div",{style:{fontSize:20,fontWeight:800,color:C.gD}},"\u20AC "+fm(bOggi)),
-          e("div",{style:{fontSize:10,color:C.mu}},ci.gR+" gg rimasti")
+          e("div",{style:{fontSize:10,color:C.mu}},"residuo \u20AC"+f0(residLive)+" \u00b7 "+ci.gR+" gg")
         )
       ),
       // BUDGET DI OGGI FISSO: quanto resta su quanto
