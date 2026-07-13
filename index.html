@@ -454,6 +454,8 @@ function App(){
   var _lastCiclo=us(localStorage.getItem("last-ciclo")||""),lastCicloId=_lastCiclo[0],setLastCicloId=_lastCiclo[1];
   var _tassa=us(0),tassa=_tassa[0],setTassa=_tassa[1];
   var _salvR=us(0),salvRisp=_salvR[0],setSalvRisp=_salvR[1];
+  var _salvC=us(0),salvCiclo=_salvC[0],setSalvCiclo=_salvC[1];
+  var _salvCI=us(0),salvCicloIni=_salvCI[0],setSalvCicloIni=_salvCI[1];
   var _carry=us(0),carry=_carry[0],setCarry=_carry[1];
   var _lastDay=us(localStorage.getItem("last-day")||""),lastDay=_lastDay[0],setLastDay=_lastDay[1];
   var _rompiOpen=us(false),rompiOpen=_rompiOpen[0],setRompiOpen=_rompiOpen[1];
@@ -511,7 +513,7 @@ function App(){
       if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);if(d.residDate!==undefined)setResidDate(d.residDate);if(d.residDate!==undefined)setResidDate(d.residDate);
       if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);
       if(d.pctR!==undefined)setPctR(d.pctR);if(d.syncNum)setSyncNum(d.syncNum);
-      if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.carry!==undefined)setCarry(d.carry);
+      if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);if(d.carry!==undefined)setCarry(d.carry);
     }
     // Import automatico da link WhatsApp
     var hash=window.location.hash;
@@ -535,7 +537,7 @@ function App(){
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,carry:carry});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,carry,ok]);
+  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,carry:carry});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,carry,ok]);
   // Save ONLINE (se configurato)
   ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,ok,jbReady]);
   // Leggi ONLINE ogni 8 secondi + merge
@@ -690,7 +692,7 @@ function App(){
   var spesoCiclo=spesoPrima+tOggi;   // speso che conta dal punto di partenza, incluso oggi
   var tExtra=spVar.reduce(function(a,x){return a+x.imp;},0); // totale variabile del ciclo (statistiche)
   // Residuo a INIZIO giornata (prima delle spese di oggi) e residuo LIVE (aggiornato ad ogni spesa di oggi)
-  var residInizioOggi=dispoVar-spesoPrima;
+  var residInizioOggi=dispoVar-spesoPrima-salvCiclo;
   var residLive=residInizioOggi-tOggi;
   var rim=residLive;
   var base=resid>0?resid:stip;
@@ -705,12 +707,17 @@ function App(){
   var avanzoOggi=restaOggi>tassa?(restaOggi-tassa):0;
   // Previsione di DOMANI: il residuo che avanza dopo oggi, diviso i giorni che restano da domani
   var giorniDomani=Math.max(1,ci.gR);
-  var bDomani=residLive/giorniDomani;
+  var bDomani=(residLive-rispOggi)/giorniDomani;
   var deltaDomani=bDomani-bOggi;
   var giorniRif=manuale?(Math.floor((ogTs-residTs)/86400000)+1):ci.gP;
   var mEff=giorniRif>0?spesoCiclo/giorniRif:0;
   var bAlim=residLive>0?residLive/gDiv:0;
   var dB=bOggi-bIni,bUp=dB>0.5,bDn=dB<-0.5;
+  // Azzeramento risparmi-del-ciclo quando inizia un nuovo ciclo (paga)
+  ue(function(){
+    if(!ok)return;
+    if(salvCicloIni!==ci.iniTs){setSalvCiclo(0);setSalvCicloIni(ci.iniTs);}
+  },[ok,ci.iniTs]);
   // ===== CHIUSURA GIORNALIERA AUTOMATICA (a mezzanotte / al primo avvio del giorno nuovo) =====
   ue(function(){
     if(!ok)return;
@@ -728,13 +735,13 @@ function App(){
       }else{
         spesoPrimaIeri=spVar.filter(function(s){return s.data!==lastDay && s.data!==ogS && keyD(s.data)<ldTs;}).reduce(function(a,x){return a+x.imp;},0);
       }
-      var residInizioIeri=dispoVar-spesoPrimaIeri;
+      var residInizioIeri=dispoVar-spesoPrimaIeri-salvCiclo;
       var gIeri=ci.gR+2;
       var budgetIeri=residInizioIeri/gIeri;
       var restaIeri=budgetIeri-speseIeri;
       // Risparmio verso salvadanaio (da 0 a tassa): quello che avanzo fino all'obiettivo va messo via
       var rispIeri=Math.max(0,Math.min(tassa,restaIeri));
-      if(rispIeri>0)setSalvRisp(function(v){return v+rispIeri;});
+      if(rispIeri>0){setSalvRisp(function(v){return v+rispIeri;});setSalvCiclo(function(v){return v+rispIeri;});}
       localStorage.setItem("last-day",ogS);setLastDay(ogS);
     }
   },[ok,ogS,lastDay]);
@@ -890,14 +897,14 @@ function App(){
           "\u20AC"+f0(residInizioOggi)+" \u00F7 "+gDiv+" giorni = ",
           e("span",{style:{color:C.aD,fontWeight:900,fontSize:15}},"\u20AC "+fm(bOggi)+"/giorno")
         ),
-        tOggi>0?e("div",{style:{marginTop:10,paddingTop:10,borderTop:"1px dashed "+C.ln}},
+        (tOggi>0||rispOggi>0)?e("div",{style:{marginTop:10,paddingTop:10,borderTop:"1px dashed "+C.ln}},
           e("div",{style:{textAlign:"center",fontSize:11,fontWeight:800,color:C.bl,marginBottom:4}},"\u{1F4C6} DA DOMANI"),
           e("div",{style:{textAlign:"center",fontSize:12,color:C.gD,fontWeight:700}},
-            "\u20AC"+f0(residInizioOggi)+" \u2212 \u20AC"+f0(tOggi)+" speso oggi = ",
-            e("span",{style:{color:C.bl,fontWeight:900}},"\u20AC"+f0(residLive)+" residuo")
+            "\u20AC"+f0(residInizioOggi)+(tOggi>0?" \u2212 \u20AC"+f0(tOggi)+" speso":"")+(rispOggi>0?" \u2212 \u20AC"+f0(rispOggi)+" tassa":"")+" = ",
+            e("span",{style:{color:C.bl,fontWeight:900}},"\u20AC"+f0(residLive-rispOggi)+" residuo")
           ),
           e("div",{style:{textAlign:"center",marginTop:2,fontSize:13,color:C.gD,fontWeight:700}},
-            "\u20AC"+f0(residLive)+" \u00F7 "+giorniDomani+" giorni = ",
+            "\u20AC"+f0(residLive-rispOggi)+" \u00F7 "+giorniDomani+" giorni = ",
             e("span",{style:{color:C.bl,fontWeight:900,fontSize:15}},"\u20AC "+fm(bDomani)+"/giorno")
           )
         ):null
