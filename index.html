@@ -857,7 +857,18 @@ function App(){
         e("div",{style:{textAlign:"center",marginTop:8,fontSize:13,color:C.gD,fontWeight:700}},
           "\u20AC"+f0(residInizioOggi)+" \u00F7 "+gDiv+" giorni = ",
           e("span",{style:{color:C.aD,fontWeight:900,fontSize:15}},"\u20AC "+fm(bOggi)+"/giorno")
-        )
+        ),
+        tOggi>0?e("div",{style:{marginTop:10,paddingTop:10,borderTop:"1px dashed "+C.ln}},
+          e("div",{style:{textAlign:"center",fontSize:11,fontWeight:800,color:C.bl,marginBottom:4}},"\u{1F4C6} DA DOMANI"),
+          e("div",{style:{textAlign:"center",fontSize:12,color:C.gD,fontWeight:700}},
+            "\u20AC"+f0(residInizioOggi)+" \u2212 \u20AC"+f0(tOggi)+" speso oggi = ",
+            e("span",{style:{color:C.bl,fontWeight:900}},"\u20AC"+f0(residLive)+" residuo")
+          ),
+          e("div",{style:{textAlign:"center",marginTop:2,fontSize:13,color:C.gD,fontWeight:700}},
+            "\u20AC"+f0(residLive)+" \u00F7 "+giorniDomani+" giorni = ",
+            e("span",{style:{color:C.bl,fontWeight:900,fontSize:15}},"\u20AC "+fm(bDomani)+"/giorno")
+          )
+        ):null
       ),
       e("div",{style:{display:"flex",gap:8,marginBottom:10}},
         e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
