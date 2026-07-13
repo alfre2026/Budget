@@ -406,7 +406,7 @@ function ciclo31(gp){
   var ini=og.getDate()>=gp?new Date(og.getFullYear(),og.getMonth(),gp):new Date(og.getFullYear(),og.getMonth()-1,gp);
   ini.setHours(0,0,0,0);var fin=new Date(ini.getTime());fin.setDate(fin.getDate()+30);
   var gP=Math.floor((og.getTime()-ini.getTime())/86400000)+1;
-  return{gP:gP,gR:Math.max(0,31-gP),oS:og.getDate()+" "+MESI[og.getMonth()]+" "+og.getFullYear(),gS:GG[og.getDay()],iL:ini.getDate()+" "+MESI[ini.getMonth()].slice(0,3),fL:fin.getDate()+" "+MESI[fin.getMonth()].slice(0,3)};
+  return{gP:gP,gR:Math.max(0,31-gP),iniTs:ini.getTime(),finTs:fin.getTime(),oS:og.getDate()+" "+MESI[og.getMonth()]+" "+og.getFullYear(),gS:GG[og.getDay()],iL:ini.getDate()+" "+MESI[ini.getMonth()].slice(0,3),fL:fin.getDate()+" "+MESI[fin.getMonth()].slice(0,3)};
 }
 // Encode/decode dati
 function enc(d){return btoa(unescape(encodeURIComponent(JSON.stringify(d))));}
@@ -423,6 +423,7 @@ function App(){
   var _u=us(localStorage.getItem("budget-user")||""),user=_u[0],setUser=_u[1];
   var _s=us(1850),stip=_s[0],setStip=_s[1];
   var _r=us(0),resid=_r[0],setResid=_r[1];
+  var _rsf=us(false),residSF=_rsf[0],setResidSF=_rsf[1];
   var _g=us(15),gPaga=_g[0],setGPaga=_g[1];
   var _sf=us(SF0),sf=_sf[0],setSf=_sf[1];
   var _sv=us([]),spV=_sv[0],setSpV=_sv[1];
@@ -506,7 +507,7 @@ function App(){
   ue(function(){
     var d=loadLS();
     if(d){
-      if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);
+      if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);
       if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);
       if(d.pctR!==undefined)setPctR(d.pctR);if(d.syncNum)setSyncNum(d.syncNum);
       if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.carry!==undefined)setCarry(d.carry);
@@ -520,7 +521,7 @@ function App(){
         var localSp=(d&&d.spV)?d.spV:[];
         var merged=mergeSpese(localSp,rem.spV||[]);
         setSpV(merged);
-        if(rem.resid!==undefined)setResid(rem.resid);
+        if(rem.resid!==undefined)setResid(rem.resid);if(rem.residSF!==undefined)setResidSF(rem.residSF);
         if(rem.sf)setSf(rem.sf);
         if(rem.syncNum)setLastRic(rem.syncNum);
         setTimeout(function(){
@@ -533,9 +534,9 @@ function App(){
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,resid:resid,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,carry:carry});},[stip,resid,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,carry,ok]);
+  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,carry:carry});},[stip,resid,residSF,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,carry,ok]);
   // Save ONLINE (se configurato)
-  ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,gPaga,sf,spV,pctR,ok,jbReady]);
+  ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,residSF:residSF,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,residSF,gPaga,sf,spV,pctR,ok,jbReady]);
   // Leggi ONLINE ogni 8 secondi + merge
   ue(function(){
     if(!jbReady)return;
@@ -545,7 +546,7 @@ function App(){
           setOnline(true);
           var merged=jbMergeSpese(spVRef.current,d.spV||[]);
           if(merged.length!==spVRef.current.length)setSpV(merged);
-          if(d.resid!==undefined)setResid(d.resid);
+          if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);
           if(d.sf)setSf(d.sf);
         }else{setOnline(false);}
       });
@@ -649,15 +650,27 @@ function App(){
   var tDiff=dRisp.reduce(function(a,x){return a+x.d;},0);
   var fR=tDiff*(pctR/100),fS=tDiff*((100-pctR)/100);
   // ===== MODELLO RESIDUO / GIORNI RIMANENTI (senza carry) =====
-  // Budget iniziale di RIFERIMENTO: (stipendio - spese fisse) / 31, sempre basato sullo stipendio
+  // Budget iniziale di RIFERIMENTO: (stipendio - tutte le spese fisse) / 31
   var dIni=stip-tFE,bIni=dIni/31;
-  // Disponibile per il variabile: se ho scritto un residuo manuale (Soldi reali) parto da quello, altrimenti dallo stipendio
-  var dispoVar=resid>0?(resid-tFE):(stip-tFE);
+  // Importo di una fissa (effettivo se presente, altrimenti previsto)
+  var amtF=function(s){var ee=getEff(s);return ee!==null?ee:s.prev;};
+  // Totale delle fisse ANCORA DA PAGARE (quelle NON segnate "pagato")
+  var tFENonPag=sf.reduce(function(a,x){return a+(x.pagato?0:amtF(x));},0);
+  // DISPONIBILE per il variabile:
+  //  - nessun residuo manuale: stipendio - TUTTE le fisse
+  //  - residuo manuale, interruttore SPENTO: uso il residuo netto cosi com'e
+  //  - residuo manuale, interruttore ACCESO: residuo - SOLO le fisse non pagate
+  var dispoVar;
+  if(resid>0){dispoVar=residSF?(resid-tFENonPag):resid;}
+  else{dispoVar=stip-tFE;}
   var dReal=dispoVar;
   var ogS=new Date().toLocaleDateString("it-IT");
-  // Spese variabili (escluse le fisse e i prelievi dal salvadanaio)
-  var speseVarPrimaOggi=spV.filter(function(s){return !s.fId && !s.fromSalv && s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
-  var speseOggiArr=spV.filter(function(s){return s.data===ogS && !s.fId && !s.fromSalv;});
+  // Filtro: la spesa appartiene al CICLO in corso? (data tra inizio e fine ciclo)
+  var inCiclo=function(s){var p=(s.data||"").split("/");if(p.length<3)return true;var t=new Date(+p[2],+p[1]-1,+p[0]).getTime();return t>=ci.iniTs&&t<=ci.finTs;};
+  // Spese variabili DEL CICLO (escluse le fisse e i prelievi dal salvadanaio)
+  var spVar=spV.filter(function(s){return !s.fId && !s.fromSalv && inCiclo(s);});
+  var speseVarPrimaOggi=spVar.filter(function(s){return s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
+  var speseOggiArr=spVar.filter(function(s){return s.data===ogS;});
   var tOggi=speseOggiArr.reduce(function(a,x){return a+x.imp;},0);
   var tExtra=speseVarPrimaOggi+tOggi;
   // Residuo a INIZIO giornata (prima delle spese di oggi) e residuo LIVE (aggiornato ad ogni spesa)
@@ -665,8 +678,8 @@ function App(){
   var residLive=dispoVar-tExtra;
   var rim=residLive;
   var base=resid>0?resid:stip;
-  // Giorni per la divisione = giorni rimanenti del ciclo
-  var gDiv=ci.gR>0?ci.gR:1;
+  // Giorni per la divisione = giorni rimanenti INCLUSA oggi (gR conta i giorni DOPO oggi, quindi +1)
+  var gDiv=ci.gR+1;
   // BUDGET DI OGGI = residuo(inizio giornata) / giorni rimanenti  -> resta FISSO durante la giornata
   var bOggi=residInizioOggi/gDiv;
   // OGGI TI RESTANO = budget di oggi - speso oggi  (UNA sola sottrazione: niente doppio conteggio)
@@ -674,8 +687,8 @@ function App(){
   var rispOggi=Math.max(0,Math.min(tassa,restaOggi));
   var sforoOggi=restaOggi<0?Math.abs(restaOggi):0;
   var avanzoOggi=restaOggi>tassa?(restaOggi-tassa):0;
-  // Previsione di DOMANI: il residuo che avanza dopo oggi, diviso i giorni che restano dopo oggi
-  var giorniDomani=Math.max(1,ci.gR-1);
+  // Previsione di DOMANI: il residuo che avanza dopo oggi, diviso i giorni che restano da domani
+  var giorniDomani=Math.max(1,ci.gR);
   var bDomani=residLive/giorniDomani;
   var deltaDomani=bDomani-bOggi;
   var mEff=ci.gP>0?tExtra/ci.gP:0;
@@ -690,9 +703,9 @@ function App(){
     if(lastDay!==ogS){
       // E' un nuovo giorno! Chiudo il giorno precedente (IERI = lastDay).
       // Budget di ieri = residuo(inizio ieri) / giorni che restavano ieri
-      var speseIeri=spV.filter(function(s){return s.data===lastDay && !s.fId && !s.fromSalv;}).reduce(function(a,x){return a+x.imp;},0);
-      var speseVarPrimaIeri=spV.filter(function(s){return !s.fId && !s.fromSalv && s.data!==lastDay && s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
-      var gIeri=Math.max(1,ci.gR+1);
+      var speseIeri=spV.filter(function(s){return s.data===lastDay && !s.fId && !s.fromSalv && inCiclo(s);}).reduce(function(a,x){return a+x.imp;},0);
+      var speseVarPrimaIeri=spV.filter(function(s){return !s.fId && !s.fromSalv && inCiclo(s) && s.data!==lastDay && s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
+      var gIeri=ci.gR+2;
       var budgetIeri=(dispoVar-speseVarPrimaIeri)/gIeri;
       var restaIeri=budgetIeri-speseIeri;
       // Risparmio verso salvadanaio (da 0 a tassa): quello che avanzo fino all'obiettivo va messo via
@@ -794,6 +807,13 @@ function App(){
       // COME NASCE IL BUDGET DI OGGI: Residuo / giorni rimanenti = Budget di oggi
       e("div",{style:{background:C.cd,borderRadius:14,padding:"14px 12px",marginBottom:10,borderLeft:"4px solid "+C.aD}},
         e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginBottom:10,textAlign:"center"}},"\u{1F4C5} Come nasce il budget di oggi"),
+        e("div",{style:{textAlign:"center",marginBottom:4,fontSize:12,color:C.gD,fontWeight:700}},
+          "\u20AC"+f0(dispoVar)+" disp. \u2212 \u20AC"+f0(speseVarPrimaOggi)+" spese = ",
+          e("span",{style:{color:C.aD,fontWeight:900}},"\u20AC"+f0(residInizioOggi)+" residuo")
+        ),
+        e("div",{style:{textAlign:"center",marginBottom:8,fontSize:9,color:C.mu,fontStyle:"italic"}},
+          resid>0?(residSF?"disponibile = residuo manuale \u2212 fisse non pagate (\u20AC"+f0(tFENonPag)+")":"disponibile = residuo manuale (netto)"):"disponibile = stipendio \u2212 tutte le fisse"
+        ),
         e("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap"}},
           e("div",{style:{background:C.aL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
             e("div",{style:{fontSize:9,color:C.mu}},"Residuo"),
@@ -824,7 +844,7 @@ function App(){
         e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
           e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4C5} Budget di oggi"),
           e("div",{style:{fontSize:20,fontWeight:800,color:C.gD}},"\u20AC "+fm(bOggi)),
-          e("div",{style:{fontSize:10,color:C.mu}},"residuo \u20AC"+f0(residLive)+" \u00b7 "+ci.gR+" gg")
+          e("div",{style:{fontSize:10,color:C.mu}},"residuo \u20AC"+f0(residLive)+" \u00b7 "+gDiv+" gg")
         )
       ),
       // BUDGET DI OGGI FISSO: quanto resta su quanto
@@ -896,7 +916,13 @@ function App(){
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
         e("div",{style:{fontSize:13,fontWeight:700,color:C.gD}},"\u{1F4B3} Soldi reali"),
-        e("input",{type:"number",inputMode:"decimal",value:resid===0?"":resid,placeholder:"0 = stipendio",onChange:function(ev){setResid(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginTop:6}})
+        e("input",{type:"number",inputMode:"decimal",value:resid===0?"":resid,placeholder:"0 = stipendio",onChange:function(ev){setResid(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginTop:6}}),
+        e("div",{onClick:function(){setResidSF(!residSF);},style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,padding:"8px 10px",borderRadius:10,background:residSF?C.gL:"#f5f5f0",border:"1px solid "+(residSF?C.gn:C.ln),cursor:"pointer",opacity:resid>0?1:0.5}},
+          e("span",{style:{fontSize:12,fontWeight:700,color:residSF?C.gn:C.mu}},"Sottrai le fisse non pagate"),
+          e("span",{style:{fontSize:13,fontWeight:800,color:residSF?C.gn:C.mu}},residSF?"\u2705 S\u00CC":"\u2014 NO")
+        ),
+        e("div",{style:{fontSize:10,color:C.mu,marginTop:6,fontStyle:"italic"}},
+          resid>0?(residSF?("Dal residuo tolgo le fisse non ancora pagate: \u20AC"+f0(tFENonPag)):"Uso il residuo cos\u00EC com'\u00E8 (gi\u00E0 netto)"):"Residuo 0 = uso stipendio \u2212 tutte le fisse")
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12}},
         e("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:6}},
@@ -940,7 +966,7 @@ function App(){
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
       e("div",{style:{fontWeight:800,fontSize:17,marginBottom:6,color:C.gD}},"\u{1F3E6} Spese fisse"),
-      e("div",{style:{fontSize:12,color:C.mu,marginBottom:12}},"P=Previsto E=Speso reale \u{1F512}=blindato"),
+      e("div",{style:{fontSize:12,color:C.mu,marginBottom:12}},"P=Previsto E=Speso reale \u{1F512}=blindato \u2705=gi\u00E0 pagato"),
       sf.map(function(s){
         var eff=getEff(s);var acc=spV.filter(function(v){return v.fId===s.id;}).reduce(function(a,x){return a+x.imp;},0);
         var diff=eff!==null?s.prev-eff:null;
@@ -948,6 +974,7 @@ function App(){
           e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:4}},
             e("span",{style:{fontSize:18}},s.icon),e("span",{style:{flex:1,fontSize:14,fontWeight:700}},s.nome),
             e("button",{onClick:function(){setSf(sf.map(function(x){return x.id===s.id?Object.assign({},x,{blind:!x.blind}):x;}));},style:{background:s.blind?"#fef3c7":"#f5f5f0",border:"1px solid "+(s.blind?C.gd:C.ln),borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",color:s.blind?C.aD:C.mu}},s.blind?"\u{1F512}":"\u{1F513}"),
+            e("button",{onClick:function(){setSf(sf.map(function(x){return x.id===s.id?Object.assign({},x,{pagato:!x.pagato}):x;}));},style:{background:s.pagato?C.gL:"#f5f5f0",border:"1px solid "+(s.pagato?C.gn:C.ln),borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",color:s.pagato?C.gn:C.mu}},s.pagato?"\u2705":"\u{1F4B6}"),
             !s.blind?e("button",{onClick:function(){setSf(sf.map(function(x){return x.id===s.id?Object.assign({},x,{confVal:x.confVal!=null?null:(acc>0?acc:x.prev)}):x;}));},style:{background:s.confVal!=null?C.gL:"#f5f5f0",border:"1px solid "+(s.confVal!=null?C.gn:C.ln),borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",color:s.confVal!=null?C.gn:C.mu}},s.confVal!=null?"\u2705":"Conf"):null
           ),
           e("div",{style:{display:"flex",gap:6,paddingLeft:26,fontSize:13}},
@@ -1000,17 +1027,34 @@ function App(){
           e("button",{onClick:function(){setShowForm(false);},style:{background:"none",border:"1.5px solid "+C.mu,borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",color:C.mu}},"Annulla")
         )
       ):e("button",{onClick:function(){setShowForm(true);},style:{width:"100%",padding:11,borderRadius:10,border:"none",background:C.aD,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer"}},"+ Aggiungi spesa"),
-      spV.length>0?e("div",{style:{marginTop:14}},
-        e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6,color:C.gD}},"\u{1F4CB} Ultime spese"),
-        spV.slice().reverse().slice(0,25).map(function(s){
-          return e("div",{key:s.id,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid "+C.ln,fontSize:13}},
-            e("span",null,s.fId?"\u{1F4CC}":CATS[s.cat]?CATS[s.cat].i:"\u{1F4E6}"),
-            e("span",{style:{flex:1}},e("div",{style:{fontWeight:600}},s.desc||s.lbl),e("div",{style:{fontSize:11,color:C.mu}},s.data+(s.chi?" \u00B7 "+s.chi:""))),
-            e("span",{style:{fontWeight:700,fontFamily:"monospace"}},"\u20AC"+fm(s.imp)),
-            e("button",{onClick:function(){setSpV(spV.filter(function(x){return x.id!==s.id;}));},style:{background:"none",border:"none",cursor:"pointer",color:C.rd,fontSize:13}},"\u2715")
-          );
-        })
-      ):null
+      spV.length>0?(function(){
+        var gruppi={},ordine=[];
+        spV.forEach(function(s){if(!gruppi[s.data]){gruppi[s.data]=[];ordine.push(s.data);}gruppi[s.data].push(s);});
+        var key=function(d){var p=(d||"").split("/");return p.length<3?0:new Date(+p[2],+p[1]-1,+p[0]).getTime();};
+        ordine.sort(function(a,b){return key(b)-key(a);});
+        ordine=ordine.slice(0,20);
+        return e("div",{style:{marginTop:14}},
+          e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6,color:C.gD}},"\u{1F4CB} Spese per giorno"),
+          ordine.map(function(giorno){
+            var lista=gruppi[giorno];
+            var totGiorno=lista.filter(function(s){return !s.fId && !s.fromSalv;}).reduce(function(a,x){return a+x.imp;},0);
+            return e("div",{key:giorno,style:{marginBottom:10}},
+              e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.gL,borderRadius:8,padding:"5px 10px",marginBottom:2}},
+                e("span",{style:{fontSize:12,fontWeight:800,color:C.gD}},giorno),
+                e("span",{style:{fontSize:13,fontWeight:800,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(totGiorno))
+              ),
+              lista.map(function(s){
+                return e("div",{key:s.id,style:{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid "+C.ln,fontSize:13}},
+                  e("span",null,s.fId?"\u{1F4CC}":CATS[s.cat]?CATS[s.cat].i:"\u{1F4E6}"),
+                  e("span",{style:{flex:1}},e("div",{style:{fontWeight:600}},s.desc||s.lbl),s.chi?e("div",{style:{fontSize:11,color:C.mu}},s.chi):null),
+                  e("span",{style:{fontWeight:700,fontFamily:"monospace"}},"\u20AC"+fm(s.imp)),
+                  e("button",{onClick:function(){setSpV(spV.filter(function(x){return x.id!==s.id;}));},style:{background:"none",border:"none",cursor:"pointer",color:C.rd,fontSize:13}},"\u2715")
+                );
+              })
+            );
+          })
+        );
+      })():null
     ):null,
 
     // SYNC / INVIA
