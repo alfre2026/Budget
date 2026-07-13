@@ -791,6 +791,30 @@ function App(){
           e("span",{style:{color:C.pu,fontWeight:900,fontSize:15}},"\u20AC "+fm(bIni)+"/giorno")
         )
       ),
+      // COME NASCE IL BUDGET DI OGGI: Residuo / giorni rimanenti = Budget di oggi
+      e("div",{style:{background:C.cd,borderRadius:14,padding:"14px 12px",marginBottom:10,borderLeft:"4px solid "+C.aD}},
+        e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginBottom:10,textAlign:"center"}},"\u{1F4C5} Come nasce il budget di oggi"),
+        e("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap"}},
+          e("div",{style:{background:C.aL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
+            e("div",{style:{fontSize:9,color:C.mu}},"Residuo"),
+            e("div",{style:{fontWeight:800,fontSize:14,color:C.aD}},"\u20AC"+f0(residInizioOggi))
+          ),
+          e("span",{style:{fontWeight:800,color:C.mu,fontSize:16}},"\u00F7"),
+          e("div",{style:{background:C.bL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
+            e("div",{style:{fontSize:9,color:C.mu}},"Giorni rimasti"),
+            e("div",{style:{fontWeight:800,fontSize:14,color:C.bl}},gDiv)
+          ),
+          e("span",{style:{fontWeight:800,color:C.mu,fontSize:16}},"="),
+          e("div",{style:{background:C.gL,borderRadius:8,padding:"6px 10px",textAlign:"center"}},
+            e("div",{style:{fontSize:9,color:C.mu}},"Budget oggi"),
+            e("div",{style:{fontWeight:800,fontSize:14,color:C.gD}},"\u20AC"+f0(bOggi))
+          )
+        ),
+        e("div",{style:{textAlign:"center",marginTop:8,fontSize:13,color:C.gD,fontWeight:700}},
+          "\u20AC"+f0(residInizioOggi)+" \u00F7 "+gDiv+" giorni = ",
+          e("span",{style:{color:C.aD,fontWeight:900,fontSize:15}},"\u20AC "+fm(bOggi)+"/giorno")
+        )
+      ),
       e("div",{style:{display:"flex",gap:8,marginBottom:10}},
         e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
           e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4D0} Budget iniziale"),
