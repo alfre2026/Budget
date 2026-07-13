@@ -722,7 +722,7 @@ function App(){
   var parzResto=Math.max(0,budgetParz-tOggi);
   var rispResto=Math.max(0,rispQuota-Math.max(0,tOggi-budgetParz));
   // Montepremi (proiezione autentica): risparmio gia messo via realmente + (giorni rimanenti inclusa oggi x tassa)
-  var montepremi=salvCiclo+(gDiv*tassa);
+  var montepremi=salvCiclo+rispResto+(ci.gR*tassa);
   var euroPersi=persiGiorni*tassa;
   var dB=bOggi-bIni,bUp=dB>0.5,bDn=dB<-0.5;
   // Azzeramento risparmi-del-ciclo quando inizia un nuovo ciclo (paga)
