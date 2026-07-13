@@ -424,6 +424,7 @@ function App(){
   var _s=us(1850),stip=_s[0],setStip=_s[1];
   var _r=us(0),resid=_r[0],setResid=_r[1];
   var _rsf=us(false),residSF=_rsf[0],setResidSF=_rsf[1];
+  var _rd=us(""),residDate=_rd[0],setResidDate=_rd[1];
   var _g=us(15),gPaga=_g[0],setGPaga=_g[1];
   var _sf=us(SF0),sf=_sf[0],setSf=_sf[1];
   var _sv=us([]),spV=_sv[0],setSpV=_sv[1];
@@ -507,7 +508,7 @@ function App(){
   ue(function(){
     var d=loadLS();
     if(d){
-      if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);
+      if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);if(d.residDate!==undefined)setResidDate(d.residDate);if(d.residDate!==undefined)setResidDate(d.residDate);
       if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);
       if(d.pctR!==undefined)setPctR(d.pctR);if(d.syncNum)setSyncNum(d.syncNum);
       if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.carry!==undefined)setCarry(d.carry);
@@ -521,7 +522,7 @@ function App(){
         var localSp=(d&&d.spV)?d.spV:[];
         var merged=mergeSpese(localSp,rem.spV||[]);
         setSpV(merged);
-        if(rem.resid!==undefined)setResid(rem.resid);if(rem.residSF!==undefined)setResidSF(rem.residSF);
+        if(rem.resid!==undefined)setResid(rem.resid);if(rem.residSF!==undefined)setResidSF(rem.residSF);if(rem.residDate!==undefined)setResidDate(rem.residDate);
         if(rem.sf)setSf(rem.sf);
         if(rem.syncNum)setLastRic(rem.syncNum);
         setTimeout(function(){
@@ -534,9 +535,9 @@ function App(){
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,carry:carry});},[stip,resid,residSF,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,carry,ok]);
+  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,carry:carry});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,carry,ok]);
   // Save ONLINE (se configurato)
-  ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,residSF:residSF,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,residSF,gPaga,sf,spV,pctR,ok,jbReady]);
+  ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,ok,jbReady]);
   // Leggi ONLINE ogni 8 secondi + merge
   ue(function(){
     if(!jbReady)return;
@@ -669,20 +670,35 @@ function App(){
   var inCiclo=function(s){var p=(s.data||"").split("/");if(p.length<3)return true;var t=new Date(+p[2],+p[1]-1,+p[0]).getTime();return t>=ci.iniTs&&t<=ci.finTs;};
   // Spese variabili DEL CICLO (escluse le fisse e i prelievi dal salvadanaio)
   var spVar=spV.filter(function(s){return !s.fId && !s.fromSalv && inCiclo(s);});
-  var speseVarPrimaOggi=spVar.filter(function(s){return s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
+  var keyD=function(d){var p=(d||"").split("/");return p.length<3?0:new Date(+p[2],+p[1]-1,+p[0]).getTime();};
+  var ogTs=keyD(ogS);
+  var manuale=resid>0;
+  // Spese variabili di OGGI
   var speseOggiArr=spVar.filter(function(s){return s.data===ogS;});
   var tOggi=speseOggiArr.reduce(function(a,x){return a+x.imp;},0);
-  var tExtra=speseVarPrimaOggi+tOggi;
-  // Residuo a INIZIO giornata (prima delle spese di oggi) e residuo LIVE (aggiornato ad ogni spesa)
-  var residInizioOggi=dispoVar-speseVarPrimaOggi;
-  var residLive=dispoVar-tExtra;
+  // Spese dei giorni PRECEDENTI a oggi che riducono il residuo:
+  //  - AUTO: tutte le spese del ciclo prima di oggi (lo stipendio non e ancora speso)
+  //  - MANUALE: solo le spese DAL giorno in cui ho scritto il residuo (quel numero e gia netto del passato)
+  var residTs=keyD(residDate||ogS);
+  var spesoPrima;
+  if(manuale){
+    spesoPrima=spVar.filter(function(s){var k=keyD(s.data);return k>=residTs && k<ogTs;}).reduce(function(a,x){return a+x.imp;},0);
+  }else{
+    spesoPrima=spVar.filter(function(s){return s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
+  }
+  var speseVarPrimaOggi=spesoPrima;
+  var spesoCiclo=spesoPrima+tOggi;   // speso che conta dal punto di partenza, incluso oggi
+  var tExtra=spVar.reduce(function(a,x){return a+x.imp;},0); // totale variabile del ciclo (statistiche)
+  // Residuo a INIZIO giornata (prima delle spese di oggi) e residuo LIVE (aggiornato ad ogni spesa di oggi)
+  var residInizioOggi=dispoVar-spesoPrima;
+  var residLive=residInizioOggi-tOggi;
   var rim=residLive;
   var base=resid>0?resid:stip;
   // Giorni per la divisione = giorni rimanenti INCLUSA oggi (gR conta i giorni DOPO oggi, quindi +1)
   var gDiv=ci.gR+1;
   // BUDGET DI OGGI = residuo(inizio giornata) / giorni rimanenti  -> resta FISSO durante la giornata
   var bOggi=residInizioOggi/gDiv;
-  // OGGI TI RESTANO = budget di oggi - speso oggi  (UNA sola sottrazione: niente doppio conteggio)
+  // OGGI TI RESTANO = budget di oggi - speso oggi
   var restaOggi=bOggi-tOggi;
   var rispOggi=Math.max(0,Math.min(tassa,restaOggi));
   var sforoOggi=restaOggi<0?Math.abs(restaOggi):0;
@@ -691,7 +707,8 @@ function App(){
   var giorniDomani=Math.max(1,ci.gR);
   var bDomani=residLive/giorniDomani;
   var deltaDomani=bDomani-bOggi;
-  var mEff=ci.gP>0?tExtra/ci.gP:0;
+  var giorniRif=manuale?(Math.floor((ogTs-residTs)/86400000)+1):ci.gP;
+  var mEff=giorniRif>0?spesoCiclo/giorniRif:0;
   var bAlim=residLive>0?residLive/gDiv:0;
   var dB=bOggi-bIni,bUp=dB>0.5,bDn=dB<-0.5;
   // ===== CHIUSURA GIORNALIERA AUTOMATICA (a mezzanotte / al primo avvio del giorno nuovo) =====
@@ -704,9 +721,16 @@ function App(){
       // E' un nuovo giorno! Chiudo il giorno precedente (IERI = lastDay).
       // Budget di ieri = residuo(inizio ieri) / giorni che restavano ieri
       var speseIeri=spV.filter(function(s){return s.data===lastDay && !s.fId && !s.fromSalv && inCiclo(s);}).reduce(function(a,x){return a+x.imp;},0);
-      var speseVarPrimaIeri=spV.filter(function(s){return !s.fId && !s.fromSalv && inCiclo(s) && s.data!==lastDay && s.data!==ogS;}).reduce(function(a,x){return a+x.imp;},0);
+      var ldTs=keyD(lastDay);
+      var spesoPrimaIeri;
+      if(manuale){
+        spesoPrimaIeri=spVar.filter(function(s){var k=keyD(s.data);return k>=residTs && k<ldTs;}).reduce(function(a,x){return a+x.imp;},0);
+      }else{
+        spesoPrimaIeri=spVar.filter(function(s){return s.data!==lastDay && s.data!==ogS && keyD(s.data)<ldTs;}).reduce(function(a,x){return a+x.imp;},0);
+      }
+      var residInizioIeri=dispoVar-spesoPrimaIeri;
       var gIeri=ci.gR+2;
-      var budgetIeri=(dispoVar-speseVarPrimaIeri)/gIeri;
+      var budgetIeri=residInizioIeri/gIeri;
       var restaIeri=budgetIeri-speseIeri;
       // Risparmio verso salvadanaio (da 0 a tassa): quello che avanzo fino all'obiettivo va messo via
       var rispIeri=Math.max(0,Math.min(tassa,restaIeri));
@@ -916,7 +940,7 @@ function App(){
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
         e("div",{style:{fontSize:13,fontWeight:700,color:C.gD}},"\u{1F4B3} Soldi reali"),
-        e("input",{type:"number",inputMode:"decimal",value:resid===0?"":resid,placeholder:"0 = stipendio",onChange:function(ev){setResid(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginTop:6}}),
+        e("input",{type:"number",inputMode:"decimal",value:resid===0?"":resid,placeholder:"0 = stipendio",onChange:function(ev){var v=parseFloat(ev.target.value)||0;setResid(v);setResidDate(v>0?new Date().toLocaleDateString("it-IT"):"");},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginTop:6}}),
         e("div",{onClick:function(){setResidSF(!residSF);},style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:10,padding:"8px 10px",borderRadius:10,background:residSF?C.gL:"#f5f5f0",border:"1px solid "+(residSF?C.gn:C.ln),cursor:"pointer",opacity:resid>0?1:0.5}},
           e("span",{style:{fontSize:12,fontWeight:700,color:residSF?C.gn:C.mu}},"Sottrai le fisse non pagate"),
           e("span",{style:{fontSize:13,fontWeight:800,color:residSF?C.gn:C.mu}},residSF?"\u2705 S\u00CC":"\u2014 NO")
@@ -926,7 +950,7 @@ function App(){
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12}},
         e("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:6}},
-          e("span",{style:{fontSize:13,fontWeight:700}},"Speso: \u20AC "+fm(tExtra)),
+          e("span",{style:{fontSize:13,fontWeight:700}},"Speso: \u20AC "+fm(spesoCiclo)),
           e("span",{style:{fontSize:13,fontWeight:700,color:rim>=0?C.gn:C.rd}},"Rimane: \u20AC "+fm(rim))
         ),
         e("div",{style:{background:C.ln,borderRadius:8,height:10,overflow:"hidden"}},
