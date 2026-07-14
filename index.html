@@ -1168,7 +1168,7 @@ function App(){
         e("div",{style:{fontWeight:800,fontSize:17,marginBottom:12,color:C.gD}},"\u2699 Impostazioni"),
         e("div",{style:{marginBottom:16}},e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F4B0} Stipendio"),e("input",{type:"number",value:stip,onChange:function(ev){setStip(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}})),
         e("div",{style:{marginBottom:16}},e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F4C5} Giorno paga"),
-          e("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},[1,5,10,15,20,25,27].map(function(g){return e("button",{key:g,onClick:function(){setGPaga(g);},style:{width:44,height:44,borderRadius:10,border:"2px solid "+(gPaga===g?C.gn:C.ln),background:gPaga===g?C.gL:"#fff",fontWeight:gPaga===g?900:600,fontSize:16,cursor:"pointer",color:gPaga===g?C.gD:C.mu}},g);}))
+          e("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},Array.from({length:31},(_,i)=>i+1).map(function(g){return e("button",{key:g,onClick:function(){setGPaga(g);},style:{width:44,height:44,borderRadius:10,border:"2px solid "+(gPaga===g?C.gn:C.ln),background:gPaga===g?C.gL:"#fff",fontWeight:gPaga===g?900:600,fontSize:16,cursor:"pointer",color:gPaga===g?C.gD:C.mu}},g);}))
         ),
         e("div",{style:{marginBottom:16}},
           e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F416} Tassa di risparmio (obiettivo al giorno)"),
