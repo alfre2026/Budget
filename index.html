@@ -425,6 +425,9 @@ function App(){
   var _r=us(0),resid=_r[0],setResid=_r[1];
   var _rsf=us(false),residSF=_rsf[0],setResidSF=_rsf[1];
   var _rd=us(""),residDate=_rd[0],setResidDate=_rd[1];
+  var _cm=us(0),cfgMod=_cm[0],setCfgMod=_cm[1];
+  var _sm=us(0),salvMod=_sm[0],setSalvMod=_sm[1];
+  var _di=us([]),delIds=_di[0],setDelIds=_di[1];
   var _g=us(15),gPaga=_g[0],setGPaga=_g[1];
   var _sf=us(SF0),sf=_sf[0],setSf=_sf[1];
   var _sv=us([]),spV=_sv[0],setSpV=_sv[1];
@@ -450,6 +453,13 @@ function App(){
   var _msg=us(""),msg=_msg[0],setMsg=_msg[1];
   var spVRef=React.useRef(spV);
   ue(function(){spVRef.current=spV;},[spV]);
+  var cfgModRef=React.useRef(0);
+  ue(function(){cfgModRef.current=cfgMod;},[cfgMod]);
+  var salvModRef=React.useRef(0);
+  ue(function(){salvModRef.current=salvMod;},[salvMod]);
+  var delIdsRef=React.useRef([]);
+  ue(function(){delIdsRef.current=delIds;},[delIds]);
+  var applyRef=React.useRef(false);
   var _nota=us(""),notaChiusura=_nota[0],setNotaChiusura=_nota[1];
   var _lastCiclo=us(localStorage.getItem("last-ciclo")||""),lastCicloId=_lastCiclo[0],setLastCicloId=_lastCiclo[1];
   var _tassa=us(0),tassa=_tassa[0],setTassa=_tassa[1];
@@ -510,12 +520,13 @@ function App(){
 
   // Load: da localStorage + controlla se URL ha dati (#import=...)
   ue(function(){
+    applyRef.current=true;
     var d=loadLS();
     if(d){
       if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);if(d.residDate!==undefined)setResidDate(d.residDate);if(d.residDate!==undefined)setResidDate(d.residDate);
       if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);
       if(d.pctR!==undefined)setPctR(d.pctR);if(d.syncNum)setSyncNum(d.syncNum);
-      if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);if(d.carry!==undefined)setCarry(d.carry);
+      if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);if(d.carry!==undefined)setCarry(d.carry);if(d.cfgMod!==undefined)setCfgMod(d.cfgMod);if(d.salvMod!==undefined)setSalvMod(d.salvMod);if(d.delIds)setDelIds(d.delIds);
     }
     // Import automatico da link WhatsApp
     var hash=window.location.hash;
@@ -536,27 +547,77 @@ function App(){
       }
     }
     setOk(true);
+    setTimeout(function(){applyRef.current=false;},300);
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,ok]);
-  // Save ONLINE (se configurato)
-  ue(function(){if(ok&&jbReady)jbWrite({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,ok,jbReady]);
-  // Leggi ONLINE ogni 8 secondi + merge
+  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,ok]);
+  // Orologio impostazioni: avanza solo per modifiche fatte QUI (non quando applico il remoto)
+  ue(function(){
+    if(!ok)return;if(applyRef.current)return;
+    setCfgMod(function(){return Math.max(Date.now(),cfgModRef.current+1);});
+  },[stip,resid,residSF,residDate,gPaga,sf,pctR,tassa]);
+  // Orologio salvadanaio: avanza per chiusure/modifiche locali
+  ue(function(){
+    if(!ok)return;if(applyRef.current)return;
+    setSalvMod(function(){return Math.max(Date.now(),salvModRef.current+1);});
+  },[salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni]);
+  // Save ONLINE completo (con piccolo ritardo per non scrivere a raffica)
+  ue(function(){
+    if(!ok||!jbReady)return;
+    var t=setTimeout(function(){
+      jbWrite({ver:2,stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds});
+    },800);
+    return function(){clearTimeout(t);};
+  },[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,ok,jbReady]);
+  // Leggi ONLINE: subito, ogni 8 secondi, e appena l'app torna in primo piano
   ue(function(){
     if(!jbReady)return;
-    var iv=setInterval(function(){
+    var doRead=function(){
       jbRead(function(d){
-        if(d){
-          setOnline(true);
-          var merged=jbMergeSpese(spVRef.current,d.spV||[]);
-          if(merged.length!==spVRef.current.length)setSpV(merged);
-          if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);
+        if(!d){setOnline(false);return;}
+        setOnline(true);
+        applyRef.current=true;
+        // SPESE: unione, MENO le cancellate (mie + sue). Le cancellazioni non risorgono.
+        var delAll={};
+        delIdsRef.current.forEach(function(i){delAll[i]=1;});
+        (d.delIds||[]).forEach(function(i){delAll[i]=1;});
+        var delList=Object.keys(delAll).slice(-300);
+        if(delList.length!==delIdsRef.current.length)setDelIds(delList);
+        var merged=jbMergeSpese(spVRef.current,d.spV||[]).filter(function(sp){return !delAll[sp.id];});
+        if(JSON.stringify(merged)!==JSON.stringify(spVRef.current))setSpV(merged);
+        // IMPOSTAZIONI: applico solo se le sue sono PIU RECENTI delle mie
+        var rc=d.cfgMod||0;
+        if(rc>cfgModRef.current){
+          if(d.stip)setStip(d.stip);
+          if(d.resid!==undefined)setResid(d.resid);
+          if(d.residSF!==undefined)setResidSF(d.residSF);
+          if(d.residDate!==undefined)setResidDate(d.residDate);
+          if(d.gPaga)setGPaga(d.gPaga);
           if(d.sf)setSf(d.sf);
-        }else{setOnline(false);}
+          if(d.pctR!==undefined)setPctR(d.pctR);
+          if(d.tassa!==undefined)setTassa(d.tassa);
+          setCfgMod(rc);
+        }
+        // SALVADANAIO e contatori: stessa regola
+        var rs=d.salvMod||0;
+        if(rs>salvModRef.current){
+          if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);
+          if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);
+          if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);
+          if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);
+          if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);
+          setSalvMod(rs);
+        }
+        setTimeout(function(){applyRef.current=false;},150);
       });
-    },8000);
-    return function(){clearInterval(iv);};
+    };
+    doRead();
+    var iv=setInterval(doRead,8000);
+    var onVis=function(){if(!document.hidden)doRead();};
+    document.addEventListener("visibilitychange",onVis);
+    window.addEventListener("focus",onVis);
+    return function(){clearInterval(iv);document.removeEventListener("visibilitychange",onVis);window.removeEventListener("focus",onVis);};
   },[jbReady]);
 
   // SETUP SYNC — se non ancora configurato
@@ -1123,7 +1184,7 @@ function App(){
                   e("span",null,s.fId?"\u{1F4CC}":CATS[s.cat]?CATS[s.cat].i:"\u{1F4E6}"),
                   e("span",{style:{flex:1}},e("div",{style:{fontWeight:600}},s.desc||s.lbl),s.chi?e("div",{style:{fontSize:11,color:C.mu}},s.chi):null),
                   e("span",{style:{fontWeight:700,fontFamily:"monospace"}},"\u20AC"+fm(s.imp)),
-                  e("button",{onClick:function(){setSpV(spV.filter(function(x){return x.id!==s.id;}));},style:{background:"none",border:"none",cursor:"pointer",color:C.rd,fontSize:13}},"\u2715")
+                  e("button",{onClick:function(){setDelIds(delIds.concat([s.id]).slice(-300));setSpV(spV.filter(function(x){return x.id!==s.id;}));},style:{background:"none",border:"none",cursor:"pointer",color:C.rd,fontSize:13}},"\u2715")
                 );
               })
             );
@@ -1168,7 +1229,7 @@ function App(){
         e("div",{style:{fontWeight:800,fontSize:17,marginBottom:12,color:C.gD}},"\u2699 Impostazioni"),
         e("div",{style:{marginBottom:16}},e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F4B0} Stipendio"),e("input",{type:"number",value:stip,onChange:function(ev){setStip(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}})),
         e("div",{style:{marginBottom:16}},e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F4C5} Giorno paga"),
-          e("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},Array.from({length:31},(_,i)=>i+1).map(function(g){return e("button",{key:g,onClick:function(){setGPaga(g);},style:{width:44,height:44,borderRadius:10,border:"2px solid "+(gPaga===g?C.gn:C.ln),background:gPaga===g?C.gL:"#fff",fontWeight:gPaga===g?900:600,fontSize:16,cursor:"pointer",color:gPaga===g?C.gD:C.mu}},g);}))
+          e("div",{style:{display:"flex",flexWrap:"wrap",gap:6}},[1,5,10,15,20,25,27].map(function(g){return e("button",{key:g,onClick:function(){setGPaga(g);},style:{width:44,height:44,borderRadius:10,border:"2px solid "+(gPaga===g?C.gn:C.ln),background:gPaga===g?C.gL:"#fff",fontWeight:gPaga===g?900:600,fontSize:16,cursor:"pointer",color:gPaga===g?C.gD:C.mu}},g);}))
         ),
         e("div",{style:{marginBottom:16}},
           e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F416} Tassa di risparmio (obiettivo al giorno)"),
@@ -1190,8 +1251,8 @@ function App(){
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.rd}},
         e("div",{style:{display:"flex",gap:8}},
-          e("button",{onClick:function(){if(confirm("Reset spese?"))setSpV([]);},style:{background:C.rd,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset spese"),
-          e("button",{onClick:function(){if(confirm("RESET TUTTO?")){setSpV([]);setSf(SF0);setResid(0);setSyncNum(0);}},style:{background:C.mu,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset tutto")
+          e("button",{onClick:function(){if(confirm("Reset spese?")){setDelIds(delIds.concat(spV.map(function(x){return x.id;})).slice(-300));setSpV([]);}},style:{background:C.rd,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset spese"),
+          e("button",{onClick:function(){if(confirm("RESET TUTTO?")){setDelIds(delIds.concat(spV.map(function(x){return x.id;})).slice(-300));setSpV([]);setSf(SF0);setResid(0);setSyncNum(0);}},style:{background:C.mu,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset tutto")
         )
       )
     ):null
