@@ -342,7 +342,7 @@ var e=React.createElement,us=React.useState,ue=React.useEffect;
 var MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 var GG=["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
 var C={bg:"#f3f1e7",cd:"#fffdf8",gn:"#2d6a4f",gL:"#d8f3dc",gD:"#1b4332",aD:"#b8860b",aL:"#fbeede",rd:"#c0392b",rL:"#fde8e8",bl:"#2563eb",bL:"#dbeafe",mu:"#8a8477",ln:"#e0ddd0",gd:"#d4a843",nv:"#1e3a5f",pu:"#7c3aed",pL:"#ede9fe",wa:"#25D366"};
-var CATS={"Alimentari":{i:"\u{1F6D2}",c:C.gn},"Svago":{i:"\u{1F389}",c:C.bl},"Bimba":{i:"\u{1F476}",c:"#e91e8c"},"Fuori casa":{i:"\u{1F37D}",c:C.pu},"Farmacia":{i:"\u{1F48A}",c:C.rd},"Imprevisto":{i:"\u26A1",c:"#dc2626"},"Casa":{i:"\u{1F3E1}",c:"#0891b2"},"Trasporti":{i:"\u{1F686}",c:"#7c3aed"},"Regali":{i:"\u{1F381}",c:"#db2777"},"Salute":{i:"\u{1F3E5}",c:"#059669"},"Scuola":{i:"\u{1F4DA}",c:"#d97706"},"Animali":{i:"\u{1F415}",c:"#65a30d"},"Tecnologia":{i:"\u{1F4BB}",c:"#4338ca"},"Sport":{i:"\u26BD",c:"#ea580c"},"Bellezza":{i:"\u{1F484}",c:"#e11d48"},"Altro":{i:"\u{1F4E6}",c:C.mu}};
+var CATS={"Alimentari":{i:"\u{1F6D2}",c:C.gn,ess:1},"Svago":{i:"\u{1F389}",c:C.bl},"Bimba":{i:"\u{1F476}",c:"#e91e8c",ess:1},"Fuori casa":{i:"\u{1F37D}",c:C.pu},"Farmacia":{i:"\u{1F48A}",c:C.rd,ess:1},"Imprevisto":{i:"\u26A1",c:"#dc2626",ess:1},"Casa":{i:"\u{1F3E1}",c:"#0891b2",ess:1},"Trasporti":{i:"\u{1F686}",c:"#7c3aed",ess:1},"Regali":{i:"\u{1F381}",c:"#db2777"},"Salute":{i:"\u{1F3E5}",c:"#059669",ess:1},"Scuola":{i:"\u{1F4DA}",c:"#d97706",ess:1},"Animali":{i:"\u{1F415}",c:"#65a30d",ess:1},"Tecnologia":{i:"\u{1F4BB}",c:"#4338ca"},"Sport":{i:"\u26BD",c:"#ea580c"},"Bellezza":{i:"\u{1F484}",c:"#e11d48"},"Altro":{i:"\u{1F4E6}",c:C.mu}};
 var SF0=[
   {id:"f1",nome:"Affitto",prev:50,blind:true,icon:"\u{1F3E0}",sav:0},
   {id:"f2",nome:"Luce",prev:30,blind:false,icon:"\u{1F4A1}",sav:0},
@@ -388,12 +388,14 @@ function jbRead(cb){
   };
   xhr.send();
 }
-function jbWrite(data){
-  var bin=JB_BIN();if(!bin)return;
+function jbWrite(data,cb){
+  var bin=JB_BIN();if(!bin){if(cb)cb(false);return;}
   var xhr=new XMLHttpRequest();
   xhr.open("PUT","https://api.jsonbin.io/v3/b/"+bin,true);
   xhr.setRequestHeader("Content-Type","application/json");
   xhr.setRequestHeader("X-Master-Key",JB_KEY());
+  xhr.onreadystatechange=function(){if(xhr.readyState===4&&cb)cb(xhr.status===200);};
+  xhr.onerror=function(){if(cb)cb(false);};
   xhr.send(JSON.stringify(data));
 }
 function jbMergeSpese(local,remote){
@@ -473,48 +475,86 @@ function App(){
   var _rompiOpen=us(false),rompiOpen=_rompiOpen[0],setRompiOpen=_rompiOpen[1];
   var _rompiDesc=us(""),rompiDesc=_rompiDesc[0],setRompiDesc=_rompiDesc[1];
   var _rompiImp=us(0),rompiImp=_rompiImp[0],setRompiImp=_rompiImp[1];
+  // ===== v16: strategie comportamentali =====
+  var _goals=us([]),goals=_goals[0],setGoals=_goals[1];             // obiettivi di risparmio
+  var _modal=us(null),modal=_modal[0],setModal=_modal[1];           // finestra interna (sostituisce confirm/alert)
+  var _evit=us(0),evitati=_evit[0],setEvitati=_evit[1];           // euro NON spesi grazie alla regola
+  var _rTot=us(0),roundTot=_rTot[0],setRoundTot=_rTot[1];         // totale arrotondamenti
+  var _rUp=us(0),roundUp=_rUp[0],setRoundUp=_rUp[1];              // 0=off, 1=euro, 5=cinque euro
+  var _stk=us(0),streak=_stk[0],setStreak=_stk[1];                // giorni consecutivi tassa rispettata
+  var _bstk=us(0),bestStreak=_bstk[0],setBestStreak=_bstk[1];     // record streak
 
-  // Funzione CHIUDI MESE: aggiorna i salvadanai
-  function chiudiMese(silenzioso){
-    // Controlla voci senza speso reale
-    var mancanti=sf.filter(function(s){return !s.blind && (s.confVal===null||s.confVal===undefined);});
-    if(!silenzioso && mancanti.length>0){
-      var nomi=mancanti.map(function(s){return s.nome;}).join(", ");
-      if(!confirm("\u26A0\uFE0F Manca lo speso reale di: "+nomi+"\n\nSe continui, per queste voci considero speso = previsto (differenza 0).\n\nVuoi chiudere il mese lo stesso?"))return;
+  // ===== v16: LE TRE AZIONI SULLE SPESE FISSE =====
+  // Conferma una voce a una certa cifra: il risparmio (previsto - speso) va NEL SALVADANAIO FISSE,
+  // lo sforo invece non tocca il salvadanaio (pesa gia' sul budget tramite amtF).
+  function confermaFissa(s,val,titolo){
+    var v=Math.max(0,val||0);
+    var risp=Math.max(0,s.prev-v);
+    var gia=s.savCred||0; // eventuale credito precedente da annullare
+    setSf(function(prev){return prev.map(function(x){
+      return x.id===s.id?Object.assign({},x,{confVal:v,savCred:risp,sav:(x.sav||0)-gia+risp,pagato:true}):x;
+    });});
+    if(risp>0.004){
+      setModal({em:"\u{1F416}",tit:"+\u20AC"+fm(risp)+" nel salvadanaio fisse!",
+        msg:s.icon+" "+s.nome+": previsti \u20AC"+f0(s.prev)+", spesi \u20AC"+fm(v)+". La differenza \u00e8 messa da parte e il budget giornaliero resta intatto \u2014 non te li sei mangiati.",
+        buttons:[{lbl:"\u{1F4AA} Ottimo"}]});
+    }else if(v>s.prev+0.004){
+      setModal({em:"\u26A0\uFE0F",tit:"Sforo di \u20AC"+fm(v-s.prev),
+        msg:s.icon+" "+s.nome+": previsti \u20AC"+f0(s.prev)+", spesi \u20AC"+fm(v)+". Questi \u20AC"+fm(v-s.prev)+" mancano davvero, quindi scendono dal budget dei giorni che restano. Il salvadanaio non viene toccato.",
+        buttons:[{lbl:"Ho capito"}]});
+    }else{
+      setModal({em:"\u2705",tit:"Voce confermata",msg:s.icon+" "+s.nome+" chiusa a \u20AC"+fm(v)+", esattamente il previsto.",buttons:[{lbl:"OK"}]});
     }
-    // Calcola nuovo salvadanaio per ogni voce
-    var totaleSav=sf.reduce(function(a,x){return a+(x.sav||0);},0);
-    var note=[];
-    var nuoveSf=sf.map(function(s){
-      var speso=(s.confVal!==null&&s.confVal!==undefined)?s.confVal:s.prev; // se manca = previsto
-      var diff=s.prev-speso; // + se risparmiato, - se sforato
-      var nuovoSav=(s.sav||0)+diff;
-      return Object.assign({},s,{sav:nuovoSav,confVal:null}); // azzera speso reale
-    });
-    // REGOLA FONDO COMUNE: se una voce va sotto zero, attinge dal totale delle ALTRE
-    var totalePositivi=nuoveSf.reduce(function(a,x){return a+(x.sav>0?x.sav:0);},0);
-    nuoveSf=nuoveSf.map(function(s){
-      if(s.sav<0){
-        var mancano=Math.abs(s.sav);
-        if(totalePositivi>=mancano){
-          note.push("\u2192 "+s.icon+" "+s.nome+": era in negativo di \u20AC"+fm(mancano)+", coperto dal salvadanaio totale");
-          totalePositivi-=mancano;
-          return Object.assign({},s,{sav:0,coperto:mancano});
-        }else if(totalePositivi>0){
-          note.push("\u2192 "+s.icon+" "+s.nome+": presi \u20AC"+fm(totalePositivi)+" dal totale, restano \u20AC"+fm(mancano-totalePositivi)+" da recuperare");
-          var resta=mancano-totalePositivi;
-          totalePositivi=0;
-          return Object.assign({},s,{sav:-resta});
+  }
+  function annullaConferma(s){
+    setSf(function(prev){return prev.map(function(x){
+      return x.id===s.id?Object.assign({},x,{confVal:null,savCred:0,sav:(x.sav||0)-(x.savCred||0),pagato:false}):x;
+    });});
+  }
+  function blindaFissa(s){
+    if(s.blind){setSf(function(prev){return prev.map(function(x){return x.id===s.id?Object.assign({},x,{blind:false}):x;});});return;}
+    setModal({em:"\u{1F512}",tit:"Blindare "+s.nome+"?",
+      msg:"Le voci blindate valgono sempre \u20AC"+f0(s.prev)+": detratte a priori, senza conferme, senza risparmi n\u00e9 sfori. Usalo per affitto, rate, abbonamenti.",
+      buttons:[{lbl:"\u{1F512} S\u00ec, blinda",fn:function(){
+        setSf(function(prev){return prev.map(function(x){
+          return x.id===s.id?Object.assign({},x,{blind:true,confVal:null,savCred:0,sav:(x.sav||0)-(x.savCred||0)}):x;
+        });});
+      }},{lbl:"Annulla"}]});
+  }
+
+  // Funzione CHIUDI MESE: azzera le conferme del ciclo, il salvadanaio resta e cresce
+  function chiudiMese(silenzioso){
+    var daConf=sf.filter(function(s){return !s.blind && s.confVal==null && accOf(s)>0 && accOf(s)<s.prev;});
+    var chiudi=function(usaAccumulato){
+      var tot=0,note=[];
+      var nuove=sf.map(function(s){
+        if(s.blind)return Object.assign({},s,{pagato:false});
+        var add=0;
+        if(s.confVal==null && usaAccumulato){
+          var a=accOf(s);
+          if(a>0 && a<s.prev){add=s.prev-a;note.push("\u2192 "+s.icon+" "+s.nome+": +\u20AC"+fm(add));}
         }
-      }
-      return s;
-    });
-    setSf(nuoveSf);
-    var nuovoTotale=nuoveSf.reduce(function(a,x){return a+(x.sav||0);},0);
-    var testo="\u{1F4B0} MESE CHIUSO!\n\nSalvadanaio totale spese fisse: \u20AC"+fm(nuovoTotale);
-    if(note.length>0)testo+="\n\n\u{1F4DD} Note:\n"+note.join("\n");
-    setNotaChiusura(testo);
-    setTimeout(function(){alert(testo);},200);
+        tot+=add;
+        return Object.assign({},s,{sav:(s.sav||0)+add,confVal:null,savCred:0,pagato:false});
+      });
+      setSf(nuove);
+      var totale=nuove.reduce(function(a,x){return a+(x.sav||0);},0);
+      var testo="\u{1F4B0} MESE CHIUSO\n\nSalvadanaio spese fisse: \u20AC"+fm(totale);
+      setNotaChiusura(testo);
+      setModal({em:"\u{1F416}",tit:"Mese chiuso!",
+        msg:"Salvadanaio spese fisse: \u20AC"+fm(totale)+(tot>0?" (+\u20AC"+fm(tot)+" da questo mese)":"")+". Le conferme sono azzerate: da domani riparti con i previsti puliti.",
+        buttons:[{lbl:"\u{1F44D} Perfetto"}]});
+    };
+    if(!silenzioso && daConf.length>0){
+      var nomi=daConf.map(function(s){return s.nome+" (\u20AC"+fm(accOf(s))+" su \u20AC"+f0(s.prev)+")";}).join(", ");
+      setModal({em:"\u{1F914}",tit:"Voci non ancora confermate",
+        msg:nomi+". Se hai finito di spenderci, confermo gli importi accumulati e la differenza va nel salvadanaio.",
+        buttons:[{lbl:"\u{1F416} S\u00ec, metti da parte la differenza",fn:function(){chiudi(true);}},
+                 {lbl:"No, considera speso = previsto",fn:function(){chiudi(false);}},
+                 {lbl:"Annulla"}]});
+      return;
+    }
+    chiudi(false);
   }
 
 
@@ -523,10 +563,11 @@ function App(){
     applyRef.current=true;
     var d=loadLS();
     if(d){
-      if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);if(d.residDate!==undefined)setResidDate(d.residDate);if(d.residDate!==undefined)setResidDate(d.residDate);
+      if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);if(d.residDate!==undefined)setResidDate(d.residDate);
       if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);
       if(d.pctR!==undefined)setPctR(d.pctR);if(d.syncNum)setSyncNum(d.syncNum);
       if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);if(d.carry!==undefined)setCarry(d.carry);if(d.cfgMod!==undefined)setCfgMod(d.cfgMod);if(d.salvMod!==undefined)setSalvMod(d.salvMod);if(d.delIds)setDelIds(d.delIds);
+      if(d.goals)setGoals(d.goals);if(d.evitati!==undefined)setEvitati(d.evitati);if(d.roundTot!==undefined)setRoundTot(d.roundTot);if(d.roundUp!==undefined)setRoundUp(d.roundUp);if(d.streak!==undefined)setStreak(d.streak);if(d.bestStreak!==undefined)setBestStreak(d.bestStreak);
     }
     // Import automatico da link WhatsApp
     var hash=window.location.hash;
@@ -535,7 +576,9 @@ function App(){
       var rem=dec(payload);
       if(rem){
         var localSp=(d&&d.spV)?d.spV:[];
-        var merged=mergeSpese(localSp,rem.spV||[]);
+        var delAllH={};((d&&d.delIds)||[]).forEach(function(i){delAllH[i]=1;});(rem.delIds||[]).forEach(function(i){delAllH[i]=1;});
+        var merged=mergeSpese(localSp,rem.spV||[]).filter(function(s){return !delAllH[s.id];});
+        setDelIds(Object.keys(delAllH).slice(-300));
         setSpV(merged);
         if(rem.resid!==undefined)setResid(rem.resid);if(rem.residSF!==undefined)setResidSF(rem.residSF);if(rem.residDate!==undefined)setResidDate(rem.residDate);
         if(rem.sf)setSf(rem.sf);
@@ -551,25 +594,28 @@ function App(){
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,ok]);
+  ue(function(){if(ok)saveLS({stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak});},[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,goals,evitati,roundTot,roundUp,streak,bestStreak,ok]);
   // Orologio impostazioni: avanza solo per modifiche fatte QUI (non quando applico il remoto)
   ue(function(){
     if(!ok)return;if(applyRef.current)return;
     setCfgMod(function(){return Math.max(Date.now(),cfgModRef.current+1);});
-  },[stip,resid,residSF,residDate,gPaga,sf,pctR,tassa]);
+  },[stip,resid,residSF,residDate,gPaga,sf,pctR,tassa,roundUp]);
   // Orologio salvadanaio: avanza per chiusure/modifiche locali
   ue(function(){
     if(!ok)return;if(applyRef.current)return;
     setSalvMod(function(){return Math.max(Date.now(),salvModRef.current+1);});
-  },[salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni]);
+  },[salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,goals,evitati,roundTot,streak,bestStreak]);
   // Save ONLINE completo (con piccolo ritardo per non scrivere a raffica)
   ue(function(){
     if(!ok||!jbReady)return;
     var t=setTimeout(function(){
-      jbWrite({ver:2,stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds});
+      var payload={ver:2,stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak};
+      jbWrite(payload,function(okW){
+        if(!okW){setOnline(false);setTimeout(function(){jbWrite(payload);},5000);} // riprova una volta dopo 5s
+      });
     },800);
     return function(){clearTimeout(t);};
-  },[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,ok,jbReady]);
+  },[stip,resid,residSF,residDate,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,goals,evitati,roundTot,roundUp,streak,bestStreak,ok,jbReady]);
   // Leggi ONLINE: subito, ogni 8 secondi, e appena l'app torna in primo piano
   ue(function(){
     if(!jbReady)return;
@@ -597,6 +643,7 @@ function App(){
           if(d.sf)setSf(d.sf);
           if(d.pctR!==undefined)setPctR(d.pctR);
           if(d.tassa!==undefined)setTassa(d.tassa);
+          if(d.roundUp!==undefined)setRoundUp(d.roundUp);
           setCfgMod(rc);
         }
         // SALVADANAIO e contatori: stessa regola
@@ -607,6 +654,11 @@ function App(){
           if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);
           if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);
           if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);
+          if(d.goals)setGoals(d.goals);
+          if(d.evitati!==undefined)setEvitati(d.evitati);
+          if(d.roundTot!==undefined)setRoundTot(d.roundTot);
+          if(d.streak!==undefined)setStreak(d.streak);
+          if(d.bestStreak!==undefined)setBestStreak(d.bestStreak);
           setSalvMod(rs);
         }
         setTimeout(function(){applyRef.current=false;},150);
@@ -615,9 +667,13 @@ function App(){
     doRead();
     var iv=setInterval(doRead,8000);
     var onVis=function(){if(!document.hidden)doRead();};
+    var onOff=function(){setOnline(false);};
+    var onOn=function(){doRead();};
     document.addEventListener("visibilitychange",onVis);
     window.addEventListener("focus",onVis);
-    return function(){clearInterval(iv);document.removeEventListener("visibilitychange",onVis);window.removeEventListener("focus",onVis);};
+    window.addEventListener("offline",onOff);
+    window.addEventListener("online",onOn);
+    return function(){clearInterval(iv);document.removeEventListener("visibilitychange",onVis);window.removeEventListener("focus",onVis);window.removeEventListener("offline",onOff);window.removeEventListener("online",onOn);};
   },[jbReady]);
 
   // SETUP SYNC — se non ancora configurato
@@ -704,22 +760,32 @@ function App(){
       },1000);
     }
   },[ok,ci.gR]);var base=resid>0?resid:stip;
+  // Una spesa appartiene al ciclo in corso?
+  var inCiclo=function(s){var p=(s.data||"").split("/");if(p.length<3)return true;var t=new Date(+p[2],+p[1]-1,+p[0]).getTime();return t>=ci.iniTs&&t<=ci.finTs;};
+  // Accumulato di una voce fissa NEL CICLO IN CORSO (le aggiunte da 10 euro alla volta)
+  var accOf=function(s){return spV.filter(function(v){return v.fId===s.id&&inCiclo(v);}).reduce(function(a,x){return a+x.imp;},0);};
+  // Speso reale mostrato in pagina (null = ancora nessuna traccia)
   var getEff=function(s){
     if(s.blind)return s.prev;
     if(s.confVal!=null)return s.confVal;
-    var acc=spV.filter(function(v){return v.fId===s.id;}).reduce(function(a,x){return a+x.imp;},0);
-    return acc>0?acc:null;
+    var a=accOf(s);return a>0?a:null;
+  };
+  // ===== REGOLA D'ORO v16: una fissa pesa sul budget SEMPRE ALMENO il previsto =====
+  // - spendo meno del previsto -> il budget NON sale: il risparmio va nel salvadanaio fisse
+  // - spendo piu' del previsto -> lo sforo scende subito sul budget dei giorni rimanenti
+  var amtF=function(s){
+    if(s.blind)return s.prev;
+    var val=(s.confVal!=null)?s.confVal:accOf(s);
+    return val>s.prev?val:s.prev;
   };
   var tFP=sf.reduce(function(a,x){return a+x.prev;},0);
-  var tFE=sf.reduce(function(a,x){var ee=getEff(x);return a+(ee!==null?ee:x.prev);},0);
-  var dRisp=sf.filter(function(s){return getEff(s)!==null;}).map(function(s){var ee=getEff(s);return{d:s.prev-ee};});
-  var tDiff=dRisp.reduce(function(a,x){return a+x.d;},0);
+  var tFE=sf.reduce(function(a,x){return a+amtF(x);},0);
+  // Risparmi sulle fisse gia' confermati in questo ciclo (alimentano il pannello Fondi)
+  var tDiff=sf.reduce(function(a,x){return a+(x.savCred||0);},0);
   var fR=tDiff*(pctR/100),fS=tDiff*((100-pctR)/100);
   // ===== MODELLO RESIDUO / GIORNI RIMANENTI (senza carry) =====
   // Budget iniziale di RIFERIMENTO: (stipendio - tutte le spese fisse) / 31
   var dIni=stip-tFE,bIni=dIni/31;
-  // Importo di una fissa (effettivo se presente, altrimenti previsto)
-  var amtF=function(s){var ee=getEff(s);return ee!==null?ee:s.prev;};
   // Totale delle fisse ANCORA DA PAGARE (quelle NON segnate "pagato")
   var tFENonPag=sf.reduce(function(a,x){return a+(x.pagato?0:amtF(x));},0);
   // DISPONIBILE per il variabile:
@@ -732,7 +798,6 @@ function App(){
   var dReal=dispoVar;
   var ogS=new Date().toLocaleDateString("it-IT");
   // Filtro: la spesa appartiene al CICLO in corso? (data tra inizio e fine ciclo)
-  var inCiclo=function(s){var p=(s.data||"").split("/");if(p.length<3)return true;var t=new Date(+p[2],+p[1]-1,+p[0]).getTime();return t>=ci.iniTs&&t<=ci.finTs;};
   // Spese variabili DEL CICLO (escluse le fisse e i prelievi dal salvadanaio)
   var spVar=spV.filter(function(s){return !s.fId && !s.fromSalv && inCiclo(s);});
   var keyD=function(d){var p=(d||"").split("/");return p.length<3?0:new Date(+p[2],+p[1]-1,+p[0]).getTime();};
@@ -786,6 +851,66 @@ function App(){
   var montepremi=salvCiclo+rispResto+(ci.gR*tassa);
   var euroPersi=persiGiorni*tassa;
   var dB=bOggi-bIni,bUp=dB>0.5,bDn=dB<-0.5;
+  // ===== v16: BAROMETRO 50/30/20 (Necessita' / Desideri / Risparmio sullo stipendio) =====
+  var isEss=function(c){return !!(CATS[c]&&CATS[c].ess);};
+  var spNec=spVar.filter(function(s){return isEss(s.cat);}).reduce(function(a,x){return a+x.imp;},0);
+  var spDes=spVar.filter(function(s){return !isEss(s.cat);}).reduce(function(a,x){return a+x.imp;},0);
+  var fRisp=sf.reduce(function(a,x){return a+(/risparm/i.test(x.nome||"")?amtF(x):0);},0);
+  var fNec=Math.max(0,tFE-fRisp);
+  var necTot=fNec+spNec,desTot=spDes,rispBarTot=fRisp+salvCiclo;
+  var pNec=stip>0?necTot/stip*100:0,pDes=stip>0?desTot/stip*100:0,pRis=stip>0?rispBarTot/stip*100:0;
+  // ===== v16: ULTIMI 7 GIORNI =====
+  var settLim=ogTs-6*86400000;
+  var spSett=spVar.filter(function(s){return keyD(s.data)>=settLim;});
+  var settTot=spSett.reduce(function(a,x){return a+x.imp;},0);
+  var settMedia=settTot/7;
+  var catAgg={};spSett.forEach(function(s){var c=s.cat||"Altro";catAgg[c]=(catAgg[c]||0)+s.imp;});
+  var topCats=Object.keys(catAgg).map(function(c){return{c:c,v:catAgg[c]};}).sort(function(a,b){return b.v-a.v;}).slice(0,3);
+  // ===== v16: COACH EMOTIVO (avversione alla perdita + ritmo orario) =====
+  var nowH=new Date();
+  var oreDa7=Math.max(0,(nowH.getHours()+nowH.getMinutes()/60)-7); // giornata "attiva" dalle 7 alle 22
+  var fracG=Math.min(1,Math.max(0.08,oreDa7/15));
+  var pctOggi=bOggi>0?tOggi/bOggi:0;
+  var ritmo=pctOggi/fracG;
+  var oraFine=null;
+  if(tOggi>0&&restaOggi>0&&oreDa7>0.5){
+    var rateH=tOggi/oreDa7;
+    var hFine=nowH.getHours()+nowH.getMinutes()/60+restaOggi/rateH;
+    if(hFine<22)oraFine=Math.floor(hFine)+":"+("0"+Math.round((hFine%1)*60)).slice(-2);
+  }
+  var stkTxt=(tassa>0&&streak>0)?" \u{1F525} In gioco: la tua serie di "+streak+" giorni.":"";
+  var coach;
+  if(restaOggi<0){
+    coach={em:"\u{1F6A8}\u{1F631}",bg:C.rL,bd:C.rd,
+      tit:"SEI IN NEGATIVO: \u2212\u20AC"+fm(Math.abs(restaOggi)),
+      msg:"Il budget di domani \u00e8 GI\u00c0 sceso a \u20AC"+fm(bDomani)+"/gg ("+(deltaDomani>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(deltaDomani))+"). Ogni altro euro speso oggi lo togli a te stesso domani."+((tassa>0&&streak>0)?" \u{1F525} Serie di "+streak+" giorni bruciata.":""),
+      sub:"\u{1F6D1} Fermati QUI. Uno sforo si riassorbe in pochi giorni: uno sforo doppio no."};
+  }else if(pctOggi>=0.85){
+    coach={em:"\u{1F631}",bg:C.rL,bd:C.rd,
+      tit:"Budget quasi esaurito: restano \u20AC"+fm(restaOggi),
+      msg:"Hai gi\u00e0 usato il "+Math.round(pctOggi*100)+"% del budget di oggi"+(fracG<0.55?" e la giornata \u00e8 ancora lunga":"")+"."+(oraFine?" A questo ritmo lo finisci verso le "+oraFine+".":""),
+      sub:"Da qui in poi solo l'indispensabile."+stkTxt};
+  }else if(ritmo>=1.7&&pctOggi>=0.35){
+    coach={em:"\u{1F630}",bg:C.aL,bd:C.aD,
+      tit:"Stai correndo troppo",
+      msg:"Il "+Math.round(pctOggi*100)+"% del budget se n'\u00e8 gi\u00e0 andato quando \u00e8 passato solo il "+Math.round(fracG*100)+"% della giornata."+(oraFine?" Proiezione: soldi finiti alle "+oraFine+".":""),
+      sub:"Rallenta adesso e la giornata si salva."+stkTxt};
+  }else if(pctOggi>=0.6){
+    coach={em:"\u{1F610}",bg:C.aL,bd:C.aD,
+      tit:"Pi\u00f9 di met\u00e0 budget \u00e8 andata",
+      msg:"Restano \u20AC"+fm(restaOggi)+" per arrivare a fine giornata"+(tassa>0?" salvando i \u20AC"+fm(tassa)+" della tassa":"")+".",
+      sub:"Occhio agli extra da qui a stasera."};
+  }else if(tOggi===0){
+    coach={em:"\u{1F607}",bg:C.gL,bd:C.gn,
+      tit:"Giornata immacolata",
+      msg:"Zero spese finora. Se resti cos\u00ec, stasera \u20AC"+fm(Math.min(tassa>0?tassa:0,Math.max(0,bOggi)))+" vanno nel salvadanaio e il montepremi resta \u20AC"+fm(montepremi)+".",
+      sub:null};
+  }else{
+    coach={em:"\u{1F60A}",bg:C.gL,bd:C.gn,
+      tit:"Sei in controllo",
+      msg:"Speso \u20AC"+fm(tOggi)+" su \u20AC"+fm(bOggi)+": ritmo giusto. Se chiudi cos\u00ec, da domani il budget "+(deltaDomani>=0?"sale":"scende")+" a \u20AC"+fm(bDomani)+"/gg.",
+      sub:null};
+  }
   // Azzeramento risparmi-del-ciclo quando inizia un nuovo ciclo (paga)
   ue(function(){
     if(!ok)return;
@@ -798,24 +923,53 @@ function App(){
       localStorage.setItem("last-day",ogS);setLastDay(ogS);return;
     }
     if(lastDay!==ogS){
-      // E' un nuovo giorno! Chiudo il giorno precedente (IERI = lastDay).
-      // Budget di ieri = residuo(inizio ieri) / giorni che restavano ieri
-      var speseIeri=spV.filter(function(s){return s.data===lastDay && !s.fId && !s.fromSalv && inCiclo(s);}).reduce(function(a,x){return a+x.imp;},0);
-      var ldTs=keyD(lastDay);
-      var spesoPrimaIeri;
-      if(manuale){
-        spesoPrimaIeri=spVar.filter(function(s){var k=keyD(s.data);return k>=residTs && k<ldTs;}).reduce(function(a,x){return a+x.imp;},0);
-      }else{
-        spesoPrimaIeri=spVar.filter(function(s){return s.data!==lastDay && s.data!==ogS && keyD(s.data)<ldTs;}).reduce(function(a,x){return a+x.imp;},0);
+      // Nuovo giorno! Chiudo TUTTI i giorni passati da lastDay a ieri
+      // (funziona anche se l'app e' rimasta chiusa per piu' giorni).
+      var addRisp=0,gVinti=0,gPersi=0,salvLoc=salvCiclo,stk=streak,bstk=bestStreak;
+      var goalsLoc=goals.map(function(g){return Object.assign({},g);}),goalsTouched=false;
+      var pp=lastDay.split("/");
+      var cur=pp.length===3?new Date(+pp[2],+pp[1]-1,+pp[0]):null;
+      if(cur){
+        cur.setHours(0,0,0,0);
+        var guard=0;
+        while(cur.getTime()<ogTs && guard<62){
+          guard++;
+          var dTs=cur.getTime();
+          if(dTs>=ci.iniTs){ // conto solo i giorni del ciclo in corso
+            var dStr=cur.toLocaleDateString("it-IT");
+            var speseD=spV.filter(function(s){return s.data===dStr && !s.fId && !s.fromSalv && inCiclo(s);}).reduce(function(a,x){return a+x.imp;},0);
+            var spesoPrimaD;
+            if(manuale){
+              spesoPrimaD=spVar.filter(function(s){var k=keyD(s.data);return k>=residTs && k<dTs;}).reduce(function(a,x){return a+x.imp;},0);
+            }else{
+              spesoPrimaD=spVar.filter(function(s){return keyD(s.data)<dTs;}).reduce(function(a,x){return a+x.imp;},0);
+            }
+            var residInizioD=dispoVar-spesoPrimaD-salvLoc;
+            var gD=Math.max(1,Math.round((ogTs-dTs)/86400000)+ci.gR+1);
+            var budgetD=residInizioD/gD;
+            var rispD=Math.max(0,Math.min(tassa,budgetD-speseD));
+            if(rispD>0){
+              addRisp+=rispD;salvLoc+=rispD;gVinti++;stk++;if(stk>bstk)bstk=stk;
+              // quota del risparmio del giorno destinata agli obiettivi
+              var rimane=rispD;
+              goalsLoc.forEach(function(g){
+                if(g.pct>0&&g.acc<g.imp&&rimane>0.004){
+                  var share=Math.min(rimane,rispD*g.pct/100,g.imp-g.acc);
+                  if(share>0){g.acc=(g.acc||0)+share;rimane-=share;goalsTouched=true;}
+                }
+              });
+            }
+            else if(tassa>0){gPersi++;stk=0;}
+          }
+          cur.setDate(cur.getDate()+1);cur.setHours(0,0,0,0);
+        }
       }
-      var residInizioIeri=dispoVar-spesoPrimaIeri-salvCiclo;
-      var gIeri=ci.gR+2;
-      var budgetIeri=residInizioIeri/gIeri;
-      var restaIeri=budgetIeri-speseIeri;
-      // Risparmio verso salvadanaio (da 0 a tassa): quello che avanzo fino all'obiettivo va messo via
-      var rispIeri=Math.max(0,Math.min(tassa,restaIeri));
-      if(rispIeri>0){setSalvRisp(function(v){return v+rispIeri;});setSalvCiclo(function(v){return v+rispIeri;});setSalvGiorni(function(v){return v+1;});}
-      else{setPersiGiorni(function(v){return v+1;});}
+      if(addRisp>0){setSalvRisp(function(v){return v+addRisp;});setSalvCiclo(function(v){return v+addRisp;});}
+      if(gVinti>0)setSalvGiorni(function(v){return v+gVinti;});
+      if(gPersi>0)setPersiGiorni(function(v){return v+gPersi;});
+      if(goalsTouched)setGoals(goalsLoc);
+      if(stk!==streak)setStreak(stk);
+      if(bstk!==bestStreak)setBestStreak(bstk);
       localStorage.setItem("last-day",ogS);setLastDay(ogS);
     }
   },[ok,ogS,lastDay]);
@@ -836,7 +990,7 @@ function App(){
   var inviaWA=function(){
     var nuovoNum=syncNum+1;
     setSyncNum(nuovoNum);
-    var payload=enc({spV:spV,resid:resid,sf:sf,syncNum:nuovoNum,who:user});
+    var payload=enc({spV:spV,resid:resid,sf:sf,syncNum:nuovoNum,who:user,delIds:delIds});
     var baseUrl=window.location.origin+window.location.pathname;
     var link=baseUrl+"#dati="+payload;
     var msg="\u{1F4B0} BUDGET - Aggiornamento #"+nuovoNum+"\n";
@@ -853,13 +1007,65 @@ function App(){
     if(payload.indexOf("#dati=")>=0)payload=payload.split("#dati=")[1];
     var rem=dec(payload);
     if(!rem){alert("Codice non valido");return;}
-    var merged=mergeSpese(spV,rem.spV||[]);
+    var delAll={};delIds.forEach(function(i){delAll[i]=1;});(rem.delIds||[]).forEach(function(i){delAll[i]=1;});
+    var merged=mergeSpese(spV,rem.spV||[]).filter(function(s){return !delAll[s.id];});
+    setDelIds(Object.keys(delAll).slice(-300));
     setSpV(merged);
     if(rem.resid!==undefined)setResid(rem.resid);
     if(rem.sf)setSf(rem.sf);
     if(rem.syncNum)setLastRic(rem.syncNum);
     setShowImp(false);setImpStr("");
     alert("\u2705 Aggiornamento #"+(rem.syncNum||"?")+" importato da "+(rem.who||"?")+"!");
+  };
+
+  // ===== v16: BACKUP / RIPRISTINO =====
+  var scaricaBackup=function(){
+    var d={ver:2,exported:new Date().toISOString(),stip:stip,resid:resid,residSF:residSF,residDate:residDate,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak};
+    var blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    a.download="budget-backup-"+new Date().toISOString().slice(0,10)+".json";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+  };
+  var ripristinaBackup=function(file){
+    if(!file)return;
+    var r=new FileReader();
+    r.onload=function(){
+      try{
+        var d=JSON.parse(r.result);
+        if(!d||typeof d!=="object"||(!d.sf&&!d.spV)){alert("File non valido");return;}
+        if(!confirm("Ripristino il backup"+(d.exported?" del "+d.exported.slice(0,10):"")+"?\n\nI dati attuali verranno sostituiti (anche sull'altro telefono)."))return;
+        if(d.stip)setStip(d.stip);if(d.resid!==undefined)setResid(d.resid);if(d.residSF!==undefined)setResidSF(d.residSF);if(d.residDate!==undefined)setResidDate(d.residDate);
+        if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);if(d.pctR!==undefined)setPctR(d.pctR);
+        if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);
+        if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);if(d.delIds)setDelIds(d.delIds);
+        if(d.goals)setGoals(d.goals);if(d.evitati!==undefined)setEvitati(d.evitati);if(d.roundTot!==undefined)setRoundTot(d.roundTot);if(d.roundUp!==undefined)setRoundUp(d.roundUp);
+        if(d.streak!==undefined)setStreak(d.streak);if(d.bestStreak!==undefined)setBestStreak(d.bestStreak);
+        alert("\u2705 Backup ripristinato!");
+      }catch(ex){alert("File non valido");}
+    };
+    r.readAsText(file);
+  };
+
+  // ===== v16: OBIETTIVI DI RISPARMIO =====
+  var goalCompra=function(g){
+    if(salvRisp+0.004<g.imp){
+      setModal({em:"\u{1F437}",tit:"Salvadanaio insufficiente",msg:"Nel salvadanaio ora ci sono \u20AC"+fm(salvRisp)+" (forse l'hai rotto nel frattempo). L'obiettivo resta attivo e continuer\u00e0 a riempirsi.",buttons:[{lbl:"OK"}]});
+      return;
+    }
+    setSpV(spV.concat([{id:mkId(),imp:g.imp,desc:g.desc,data:ogS,tipo:"extra",fId:null,cat:g.cat||"Altro",lbl:(CATS[g.cat]?CATS[g.cat].i+" ":"")+(g.cat||"Altro"),fromSalv:true,chi:user}]));
+    setSalvRisp(function(v){return Math.max(0,v-g.imp);});
+    setGoals(goals.filter(function(x){return x.id!==g.id;}));
+    setModal({em:"\u{1F389}",tit:"Comprato a costo zero sul budget!",msg:"Hai pagato \u20AC"+fm(g.imp)+" con soldi che avevi GI\u00c0 messo da parte, sera dopo sera. Il budget di oggi non se n'\u00e8 nemmeno accorto. Questo \u00e8 comprare da persona ricca.",buttons:[{lbl:"Grande \u{1F4AA}"}]});
+  };
+  var goalRinuncia=function(g){
+    setGoals(goals.filter(function(x){return x.id!==g.id;}));
+    setEvitati(function(v){return v+g.imp;});
+    setModal({em:"\u{1F3C6}",tit:"Hai battuto l'impulso",msg:"\u20AC"+fm(g.imp)+" NON spesi. E i \u20AC"+fm(g.acc||0)+" gi\u00e0 accumulati restano tuoi, nel salvadanaio. Totale evitato finora: \u20AC"+fm(evitati+g.imp)+".",buttons:[{lbl:"\u{1F389} Bene cos\u00ec"}]});
+  };
+  var goalSetPct=function(id,p){
+    setGoals(goals.map(function(x){return x.id===id?Object.assign({},x,{pct:p}):x;}));
   };
 
   var tabs=[{id:"home",l:"Home",em:"\u{1F4CA}"},{id:"fisse",l:"Fisse",em:"\u{1F3E6}"},{id:"spese",l:"Spese",em:"\u{1F4B8}"},{id:"sync",l:"Invia",em:"\u{1F4E4}"},{id:"cfg",l:"Config",em:"\u2699"}];
@@ -885,6 +1091,13 @@ function App(){
 
     // HOME
     tab==="home"?e("div",null,
+      // ===== v16: COACH EMOTIVO =====
+      e("div",{style:{background:coach.bg,borderRadius:14,padding:"14px 12px",marginBottom:12,textAlign:"center",border:"2.5px solid "+coach.bd}},
+        e("div",{style:{fontSize:44,lineHeight:1.1}},coach.em),
+        e("div",{style:{fontSize:16,fontWeight:900,color:coach.bd,marginTop:4}},coach.tit),
+        e("div",{style:{fontSize:13,color:C.gD,marginTop:6,fontWeight:600,lineHeight:1.45}},coach.msg),
+        coach.sub?e("div",{style:{fontSize:12,fontWeight:800,color:coach.bd,marginTop:8,background:"#fff",borderRadius:8,padding:"8px 10px"}},coach.sub):null
+      ),
       // OGGI TI RESTANO (verde, split budget parziale + risparmio) + MONTEPREMI (oro)
       e("div",{style:{display:"flex",gap:8,marginBottom:12,alignItems:"stretch"}},
         e("div",{style:{flex:1.5,background:restaOggi>=0?C.gL:C.rL,borderRadius:14,padding:"12px 8px",textAlign:"center",border:"2px solid "+(restaOggi>=0?C.gn:C.rd)+"40"}},
@@ -912,19 +1125,11 @@ function App(){
           e("div",{style:{fontSize:11,fontWeight:800,color:C.aD,marginBottom:4}},"\u{1F3C6} MONTEPREMI"),
           e("div",{style:{fontSize:23,fontWeight:900,color:C.aD,lineHeight:1.1}},"\u20AC"+fm(montepremi)),
           e("div",{style:{fontSize:9,color:C.mu,marginTop:2}},"proiezione risparmio"),
-          persiGiorni>0?e("div",{style:{fontSize:10,color:C.rd,fontWeight:700,marginTop:6}},"\u26A0\uFE0F "+persiGiorni+" gg persi \u00b7 \u2212\u20AC"+fm(euroPersi)):e("div",{style:{fontSize:10,color:C.gn,fontWeight:700,marginTop:6}},"\u2705 0 giorni persi")
+          persiGiorni>0?e("div",{style:{fontSize:10,color:C.rd,fontWeight:700,marginTop:6}},"\u26A0\uFE0F "+persiGiorni+" gg persi \u00b7 \u2212\u20AC"+fm(euroPersi)):e("div",{style:{fontSize:10,color:C.gn,fontWeight:700,marginTop:6}},"\u2705 0 giorni persi"),
+          tassa>0?e("div",{style:{fontSize:10,color:C.aD,fontWeight:800,marginTop:4}},"\u{1F525} "+streak+" gg di fila \u00b7 record "+bestStreak):null
         )
       ),
-      // ALLARME SFORO + avviso domani
-      sforoOggi>0?e("div",{style:{background:C.rL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center",border:"2px solid "+C.rd}},
-        e("div",{style:{fontSize:30}},"\u{1F534}"),
-        e("div",{style:{fontSize:16,fontWeight:900,color:C.rd}},"Sei \u20AC "+fm(sforoOggi)+" in negativo!"),
-        e("div",{style:{fontSize:13,color:C.rd,marginTop:6,fontWeight:700,background:"#fff",borderRadius:8,padding:"8px 10px"}},"\u26A0\uFE0F Da domani il budget scende a \u20AC "+fm(bDomani)+" ("+(deltaDomani>=0?"+":"")+"\u20AC "+fm(deltaDomani)+"/gg)")
-      ):(avanzoOggi>0?e("div",{style:{background:C.gL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center",border:"2px solid "+C.gn}},
-        e("div",{style:{fontSize:30}},"\u{1F60A}"),
-        e("div",{style:{fontSize:15,fontWeight:900,color:C.gn}},"Bravo! Stai risparmiando"),
-        e("div",{style:{fontSize:13,color:C.gn,marginTop:6,fontWeight:700,background:"#fff",borderRadius:8,padding:"8px 10px"}},"\u{1F4C8} Da domani il budget sale a \u20AC "+fm(bDomani)+" (+\u20AC "+fm(deltaDomani)+"/gg)")
-      ):null),
+      // (v16: il vecchio allarme sforo/avanzo e' sostituito dal Coach Emotivo qui sopra)
       e("div",{style:{display:"flex",gap:8,marginBottom:10}},
         e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
           e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4D0} Budget iniziale"),
@@ -1013,6 +1218,9 @@ function App(){
           e("div",null,"\u{1F3AF} Obiettivo: risparmia \u20AC "+fm(tassa)+"/giorno"),
           e("div",{style:{fontWeight:800,color:rispOggi>=tassa?C.gn:C.aD,marginTop:2}},"Oggi hai messo da parte: \u20AC "+fm(rispOggi)+(rispOggi>=tassa?" \u2705":" (su \u20AC "+fm(tassa)+")"))
         ):e("div",{style:{fontSize:12,color:C.mu,marginBottom:10}},"Imposta un obiettivo di risparmio giornaliero in Config \u2699"),
+        (roundTot>0||evitati>0||goals.length>0)?e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},
+          (goals.length>0?"\u{1F3AF} \u20AC"+fm(goals.reduce(function(a,g){return a+(g.acc||0);},0))+" destinati agli obiettivi \u00b7 ":"")+(roundTot>0?"\u{1FA99} \u20AC"+fm(roundTot)+" da arrotondamenti":"")+(roundTot>0&&evitati>0?" \u00b7 ":"")+(evitati>0?"\u{1F6E1}\uFE0F \u20AC"+fm(evitati)+" evitati":"")
+        ):null,
         salvRisp>0?e("button",{onClick:function(){setRompiOpen(true);},style:{width:"100%",padding:12,borderRadius:10,border:"none",background:C.gd,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"\u{1F528} Rompi salvadanaio"):null,
         rompiOpen?e("div",{style:{marginTop:10,background:"#fafaf5",borderRadius:10,padding:12,border:"1px solid "+C.ln}},
           e("div",{style:{fontSize:13,fontWeight:700,marginBottom:8}},"Cosa compri con il salvadanaio?"),
@@ -1024,6 +1232,86 @@ function App(){
           )
         ):null
       ),
+      // ===== v16: OBIETTIVI DI RISPARMIO =====
+      goals.length>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
+        e("div",{style:{fontSize:15,fontWeight:900,color:C.gD,marginBottom:4}},"\u{1F3AF} Obiettivi di risparmio"),
+        e("div",{style:{fontSize:11,color:C.mu,marginBottom:10}},"Ogni sera una quota della tassa risparmio va verso i tuoi obiettivi. A cifra raggiunta, decidi tu: comprare o tenerti i soldi."),
+        goals.map(function(g){
+          var acc=g.acc||0;
+          var pctDone=g.imp>0?Math.min(100,acc/g.imp*100):0;
+          var fatto=acc>=g.imp-0.004;
+          var quotaG=tassa*(g.pct||0)/100;
+          var gg=(!fatto&&quotaG>0)?Math.ceil((g.imp-acc)/quotaG):null;
+          return e("div",{key:g.id,style:{padding:"10px 0",borderBottom:"1px solid "+C.ln}},
+            e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+              e("span",null,CATS[g.cat]?CATS[g.cat].i:"\u{1F4E6}"),
+              e("span",{style:{flex:1,fontSize:13,fontWeight:700}},g.desc),
+              e("span",{style:{fontWeight:800,fontFamily:"monospace",fontSize:13,color:fatto?C.aD:C.gD}},"\u20AC"+fm(acc)+" / \u20AC"+fm(g.imp))
+            ),
+            e("div",{style:{background:C.ln,borderRadius:6,height:10,overflow:"hidden",marginBottom:6}},
+              e("div",{style:{width:pctDone+"%",height:10,background:fatto?C.gd:C.gn,borderRadius:6,transition:"width .3s"}})
+            ),
+            fatto?e("div",{style:{display:"flex",gap:8,alignItems:"center"}},
+              e("span",{style:{fontSize:12,fontWeight:900,color:C.aD,flex:1}},"\u{1F389} Cifra raggiunta! La vuoi ancora?"),
+              e("button",{onClick:function(){goalCompra(g);},style:{background:C.bl,color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,fontSize:12,cursor:"pointer"}},"\u{1F4B8} Compra"),
+              e("button",{onClick:function(){goalRinuncia(g);},style:{background:C.gn,color:"#fff",border:"none",borderRadius:8,padding:"6px 12px",fontWeight:700,fontSize:12,cursor:"pointer"}},"\u{1F3C6} Rinuncia")
+            ):e("div",{style:{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}},
+              e("span",{style:{fontSize:10,color:C.mu}},(gg?"\u2248 "+gg+" gg al traguardo":"\u23F8 in pausa")+" \u00b7 quota tassa:"),
+              [0,25,50,100].map(function(p){
+                return e("button",{key:p,onClick:function(){goalSetPct(g.id,p);},style:{padding:"3px 8px",borderRadius:6,border:"1.5px solid "+((g.pct||0)===p?C.gd:C.ln),background:(g.pct||0)===p?C.aL:"#fff",fontWeight:(g.pct||0)===p?900:600,fontSize:10,cursor:"pointer",color:(g.pct||0)===p?C.aD:C.mu}},p+"%");
+              }),
+              e("button",{onClick:function(){goalRinuncia(g);},style:{marginLeft:"auto",background:"none",border:"none",fontSize:10,color:C.mu,textDecoration:"underline",cursor:"pointer"}},"rinuncia")
+            )
+          );
+        }),
+        evitati>0?e("div",{style:{fontSize:11,fontWeight:800,color:C.gn,marginTop:8}},"\u{1F6E1}\uFE0F \u20AC"+fm(evitati)+" evitati finora rinunciando agli impulsi"):null
+      ):null,
+      // ===== v16: BAROMETRO 50/30/20 =====
+      e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.pu}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2,textAlign:"center"}},"\u2696\uFE0F Barometro 50/30/20"),
+        e("div",{style:{fontSize:10,color:C.mu,marginBottom:10,textAlign:"center",fontStyle:"italic"}},"Regola d'oro: max 50% necessit\u00e0, max 30% desideri, almeno 20% risparmio \u00b7 ciclo in corso"),
+        e("div",{style:{display:"flex",borderRadius:8,overflow:"hidden",height:14,marginBottom:10,background:C.ln}},
+          e("div",{style:{width:Math.min(100,pNec)+"%",background:C.nv}}),
+          e("div",{style:{width:Math.min(100-Math.min(100,pNec),pDes)+"%",background:C.bl}}),
+          e("div",{style:{width:Math.min(100-Math.min(100,pNec+pDes),pRis)+"%",background:C.gn}})
+        ),
+        e("div",{style:{display:"flex",gap:6}},
+          e("div",{style:{flex:1,background:pNec<=50?C.gL:C.rL,borderRadius:10,padding:"8px 4px",textAlign:"center"}},
+            e("div",{style:{fontSize:10,fontWeight:800,color:C.nv}},"\u{1F3E0} NECESSIT\u00C0"),
+            e("div",{style:{fontSize:16,fontWeight:900,color:pNec<=50?C.gn:C.rd}},Math.round(pNec)+"%"),
+            e("div",{style:{fontSize:9,color:C.mu}},"\u20AC"+f0(necTot)+" \u00b7 max 50%")
+          ),
+          e("div",{style:{flex:1,background:pDes<=30?C.gL:C.rL,borderRadius:10,padding:"8px 4px",textAlign:"center"}},
+            e("div",{style:{fontSize:10,fontWeight:800,color:C.bl}},"\u{1F389} DESIDERI"),
+            e("div",{style:{fontSize:16,fontWeight:900,color:pDes<=30?C.gn:C.rd}},Math.round(pDes)+"%"),
+            e("div",{style:{fontSize:9,color:C.mu}},"\u20AC"+f0(desTot)+" \u00b7 max 30%")
+          ),
+          e("div",{style:{flex:1,background:pRis>=20?C.gL:C.aL,borderRadius:10,padding:"8px 4px",textAlign:"center"}},
+            e("div",{style:{fontSize:10,fontWeight:800,color:C.gn}},"\u{1F416} RISPARMIO"),
+            e("div",{style:{fontSize:16,fontWeight:900,color:pRis>=20?C.gn:C.aD}},Math.round(pRis)+"%"),
+            e("div",{style:{fontSize:9,color:C.mu}},"\u20AC"+f0(rispBarTot)+" \u00b7 min 20%")
+          )
+        )
+      ),
+      // ===== v16: ULTIMI 7 GIORNI =====
+      spSett.length>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.bl}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:8}},"\u{1F4CA} Ultimi 7 giorni"),
+        e("div",{style:{display:"flex",gap:8,marginBottom:8}},
+          e("div",{style:{flex:1,textAlign:"center"}},
+            e("div",{style:{fontSize:10,color:C.mu}},"Speso"),
+            e("div",{style:{fontSize:17,fontWeight:900,color:C.gD}},"\u20AC"+fm(settTot))
+          ),
+          e("div",{style:{flex:1,textAlign:"center"}},
+            e("div",{style:{fontSize:10,color:C.mu}},"Media al giorno"),
+            e("div",{style:{fontSize:17,fontWeight:900,color:settMedia<=bOggi?C.gn:C.rd}},"\u20AC"+fm(settMedia)),
+            e("div",{style:{fontSize:9,color:C.mu}},"budget \u20AC"+fm(bOggi))
+          )
+        ),
+        topCats.length>0?e("div",{style:{fontSize:12,color:C.gD}},
+          e("span",{style:{fontWeight:800}},"Dove vanno: "),
+          topCats.map(function(t,i){return (i>0?" \u00b7 ":"")+(CATS[t.c]?CATS[t.c].i:"")+" "+t.c+" \u20AC"+f0(t.v);}).join("")
+        ):null
+      ):null,
       // Confronto budget iniziale vs oggi (mensile, come prima)
       e("div",{style:{background:bUp?C.gL:bDn?C.rL:C.aL,borderRadius:14,padding:14,marginBottom:12,textAlign:"center"}},
         e("div",{style:{fontSize:30}},bUp?"\u{1F60A}":bDn?"\u26A0\uFE0F":"\u{1F610}"),
@@ -1081,50 +1369,99 @@ function App(){
 
     // FISSE
     tab==="fisse"?e("div",null,
-      // SALVADANAIO TOTALE SPESE FISSE
+      // RIEPILOGO TOTALI
       (function(){
         var totSav=sf.reduce(function(a,x){return a+(x.sav||0);},0);
-        return e("div",{style:{background:totSav>=0?C.gL:C.rL,borderRadius:14,padding:16,marginBottom:12,border:"2px solid "+(totSav>=0?C.gn:C.rd)+"40"}},
-          e("div",{style:{display:"flex",alignItems:"center",gap:10}},
-            e("span",{style:{fontSize:34}},"\u{1F416}"),
-            e("div",{style:{flex:1}},
-              e("div",{style:{fontSize:12,fontWeight:700,color:C.mu}},"SALVADANAIO SPESE FISSE"),
-              e("div",{style:{fontSize:26,fontWeight:900,color:totSav>=0?C.gn:C.rd}},(totSav>=0?"+":"")+"\u20AC "+fm(totSav)),
-              e("div",{style:{fontSize:11,color:C.mu}},totSav>=0?"Guadagnato dalle oscillazioni delle spese fisse":"Da recuperare")
+        var nConf=sf.filter(function(s){return s.blind||s.confVal!=null;}).length;
+        var daPagare=sf.reduce(function(a,x){return a+(x.pagato||x.blind?0:amtF(x));},0);
+        return e("div",null,
+          e("div",{style:{background:C.nv,borderRadius:14,padding:16,marginBottom:12,color:"#fff"}},
+            e("div",{style:{fontSize:11,fontWeight:700,opacity:.85}},"TOTALE SPESE FISSE"),
+            e("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginBottom:10}},
+              e("div",{style:{fontSize:30,fontWeight:900}},"\u20AC "+f0(tFE)),
+              tFE>tFP+0.004?e("div",{style:{fontSize:13,fontWeight:800,color:"#fca5a5"}},"(+\u20AC"+f0(tFE-tFP)+" di sforo)"):e("div",{style:{fontSize:12,opacity:.8}},"come da previsione")
+            ),
+            e("div",{style:{display:"flex",gap:8,textAlign:"center"}},
+              e("div",{style:{flex:1,background:"rgba(255,255,255,.15)",borderRadius:10,padding:"8px 4px"}},
+                e("div",{style:{fontSize:10,opacity:.85}},"Previsto"),
+                e("div",{style:{fontSize:15,fontWeight:900}},"\u20AC"+f0(tFP))
+              ),
+              e("div",{style:{flex:1,background:"rgba(255,255,255,.15)",borderRadius:10,padding:"8px 4px"}},
+                e("div",{style:{fontSize:10,opacity:.85}},"Confermate"),
+                e("div",{style:{fontSize:15,fontWeight:900}},nConf+"/"+sf.length)
+              ),
+              e("div",{style:{flex:1,background:"rgba(255,255,255,.15)",borderRadius:10,padding:"8px 4px"}},
+                e("div",{style:{fontSize:10,opacity:.85}},"Da pagare"),
+                e("div",{style:{fontSize:15,fontWeight:900}},"\u20AC"+f0(daPagare))
+              )
+            )
+          ),
+          e("div",{style:{background:totSav>=0?C.gL:C.rL,borderRadius:14,padding:16,marginBottom:12,border:"2px solid "+(totSav>=0?C.gn:C.rd)+"40"}},
+            e("div",{style:{display:"flex",alignItems:"center",gap:10}},
+              e("span",{style:{fontSize:34}},"\u{1F416}"),
+              e("div",{style:{flex:1}},
+                e("div",{style:{fontSize:12,fontWeight:700,color:C.mu}},"SALVADANAIO SPESE FISSE"),
+                e("div",{style:{fontSize:26,fontWeight:900,color:totSav>=0?C.gn:C.rd}},(totSav>=0?"+":"")+"\u20AC "+fm(totSav)),
+                e("div",{style:{fontSize:11,color:C.mu}},"Quello che hai risparmiato confermando le voci sotto il previsto")
+              )
             )
           )
         );
       })(),
-      // Bottone chiudi mese
+      // CHIUDI MESE
       e("div",{style:{background:C.cd,borderRadius:14,padding:14,marginBottom:12,borderLeft:"4px solid "+C.gd}},
-        e("div",{style:{fontSize:13,color:C.mu,marginBottom:8}},"A fine mese, aggiorna i salvadanai con quanto hai davvero speso:"),
-        e("button",{onClick:function(){chiudiMese(false);},style:{width:"100%",padding:13,borderRadius:10,border:"none",background:C.gd,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"\u{1F4B0} Chiudi mese e salva nel salvadanaio")
+        e("div",{style:{fontSize:12,color:C.mu,marginBottom:8}},"A fine ciclo: azzera le conferme e porta i risparmi nel salvadanaio."),
+        e("button",{onClick:function(){chiudiMese(false);},style:{width:"100%",padding:13,borderRadius:10,border:"none",background:C.gd,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"\u{1F4B0} Chiudi mese")
       ),
+      // ELENCO VOCI
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
-      e("div",{style:{fontWeight:800,fontSize:17,marginBottom:6,color:C.gD}},"\u{1F3E6} Spese fisse"),
-      e("div",{style:{fontSize:12,color:C.mu,marginBottom:12}},"P=Previsto E=Speso reale \u{1F512}=blindato \u2705=gi\u00E0 pagato"),
+      e("div",{style:{fontWeight:800,fontSize:17,marginBottom:4,color:C.gD}},"\u{1F3E6} Voci fisse"),
+      e("div",{style:{fontSize:11,color:C.mu,marginBottom:12,lineHeight:1.5}},"Ogni voce pesa sul budget almeno il previsto. Quando hai finito di spenderci, confermala: se hai speso meno, la differenza va nel salvadanaio \u{1F416}."),
       sf.map(function(s){
-        var eff=getEff(s);var acc=spV.filter(function(v){return v.fId===s.id;}).reduce(function(a,x){return a+x.imp;},0);
-        var diff=eff!==null?s.prev-eff:null;
-        return e("div",{key:s.id,style:{padding:"10px 0",borderBottom:"1px solid "+C.ln}},
-          e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:4}},
-            e("span",{style:{fontSize:18}},s.icon),e("span",{style:{flex:1,fontSize:14,fontWeight:700}},s.nome),
-            e("button",{onClick:function(){setSf(sf.map(function(x){return x.id===s.id?Object.assign({},x,{blind:!x.blind}):x;}));},style:{background:s.blind?"#fef3c7":"#f5f5f0",border:"1px solid "+(s.blind?C.gd:C.ln),borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",color:s.blind?C.aD:C.mu}},s.blind?"\u{1F512}":"\u{1F513}"),
-            e("button",{onClick:function(){setSf(sf.map(function(x){return x.id===s.id?Object.assign({},x,{pagato:!x.pagato}):x;}));},style:{background:s.pagato?C.gL:"#f5f5f0",border:"1px solid "+(s.pagato?C.gn:C.ln),borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",color:s.pagato?C.gn:C.mu}},s.pagato?"\u2705":"\u{1F4B6}"),
-            !s.blind?e("button",{onClick:function(){setSf(sf.map(function(x){return x.id===s.id?Object.assign({},x,{confVal:x.confVal!=null?null:(acc>0?acc:x.prev)}):x;}));},style:{background:s.confVal!=null?C.gL:"#f5f5f0",border:"1px solid "+(s.confVal!=null?C.gn:C.ln),borderRadius:6,padding:"3px 8px",fontSize:11,fontWeight:700,cursor:"pointer",color:s.confVal!=null?C.gn:C.mu}},s.confVal!=null?"\u2705":"Conf"):null
+        var acc=accOf(s);
+        var conf=s.confVal!=null;
+        var chiusa=conf||s.blind;
+        var eff=getEff(s);
+        var diff=conf?(s.prev-s.confVal):null;
+        var sforo=!conf&&!s.blind&&acc>s.prev;
+        return e("div",{key:s.id,style:{padding:"12px 0",borderBottom:"1px solid "+C.ln,opacity:chiusa?.9:1}},
+          e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+            e("span",{style:{fontSize:18}},s.icon),
+            e("span",{style:{flex:1,fontSize:14,fontWeight:700}},s.nome),
+            s.blind?e("span",{style:{fontSize:11,fontWeight:800,color:C.aD,background:C.aL,borderRadius:6,padding:"3px 8px"}},"\u{1F512} \u20AC"+f0(s.prev)):
+              (conf?e("span",{style:{fontSize:11,fontWeight:800,color:C.gn,background:C.gL,borderRadius:6,padding:"3px 8px"}},"\u2705 \u20AC"+fm(s.confVal)):
+                e("span",{style:{fontSize:11,fontWeight:700,color:C.mu}},"in corso"))
           ),
-          e("div",{style:{display:"flex",gap:6,paddingLeft:26,fontSize:13}},
-            e("span",{style:{background:C.aL,borderRadius:6,padding:"3px 8px",fontFamily:"monospace",fontWeight:700,color:C.aD}},"P:\u20AC"+f0(s.prev)),
-            e("span",{style:{background:eff!=null?(eff<=s.prev?C.gL:C.rL):"#f5f5f0",borderRadius:6,padding:"3px 8px",fontFamily:"monospace",fontWeight:700,color:eff!=null?(eff<=s.prev?C.gn:C.rd):C.mu}},"E:"+(eff!=null?"\u20AC"+f0(eff):"\u2014")),
-            diff!==null?e("span",{style:{fontWeight:800,color:diff>=0?C.gn:C.rd}},(diff>=0?"+":"")+f0(diff)):null
-          ),
-          !s.blind&&acc>0?e("div",{style:{paddingLeft:26,marginTop:4}},
-            e("div",{style:{background:C.ln,borderRadius:4,height:6,overflow:"hidden",marginBottom:2}},e("div",{style:{width:Math.min(100,acc/s.prev*100)+"%",height:"100%",background:acc<=s.prev?C.gn:C.rd,borderRadius:4}})),
-            e("span",{style:{fontSize:11,color:acc<=s.prev?C.gn:C.rd}},"\u20AC"+fm(acc)+" / \u20AC"+f0(s.prev)+(acc>s.prev?" \u{1F534} SFORATO!":""))
+          // barra avanzamento
+          !s.blind?e("div",{style:{paddingLeft:26,marginBottom:6}},
+            e("div",{style:{background:C.ln,borderRadius:4,height:7,overflow:"hidden",marginBottom:3}},
+              e("div",{style:{width:Math.min(100,(conf?s.confVal:acc)/(s.prev||1)*100)+"%",height:"100%",background:sforo||(conf&&s.confVal>s.prev)?C.rd:(conf?C.gn:C.bl),borderRadius:4,transition:"width .3s"}})),
+            e("div",{style:{fontSize:11,color:sforo?C.rd:C.mu,fontWeight:sforo?800:600}},
+              "\u20AC"+fm(conf?s.confVal:acc)+" spesi su \u20AC"+f0(s.prev)+" previsti"+(sforo?" \u{1F534} SFORATO: \u2212\u20AC"+fm(acc-s.prev)+" dal budget":""))
           ):null,
-          // PROMEMORIA SALVADANAIO DELLA VOCE
-          (s.sav&&s.sav!==0)?e("div",{style:{paddingLeft:26,marginTop:4}},
-            e("span",{style:{fontSize:11,fontWeight:700,color:s.sav>0?C.gn:C.rd,background:s.sav>0?C.gL:C.rL,borderRadius:6,padding:"2px 8px"}},"\u{1F416} "+(s.sav>0?"+":"")+"\u20AC"+fm(s.sav)+(s.sav>0?" da parte":" da recuperare"))
+          // esito conferma
+          conf&&diff>0.004?e("div",{style:{paddingLeft:26,marginBottom:6}},
+            e("span",{style:{fontSize:11,fontWeight:800,color:C.gn,background:C.gL,borderRadius:6,padding:"3px 8px"}},"\u{1F416} +\u20AC"+fm(diff)+" messi da parte")):null,
+          conf&&diff<-0.004?e("div",{style:{paddingLeft:26,marginBottom:6}},
+            e("span",{style:{fontSize:11,fontWeight:800,color:C.rd,background:C.rL,borderRadius:6,padding:"3px 8px"}},"\u26A0\uFE0F \u2212\u20AC"+fm(-diff)+" tolti dal budget")):null,
+          // I TRE BOTTONI
+          e("div",{style:{display:"flex",gap:6,paddingLeft:26,flexWrap:"wrap"}},
+            chiusa?e("button",{onClick:function(){s.blind?blindaFissa(s):annullaConferma(s);},
+              style:{background:"none",border:"1.5px solid "+C.mu,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",color:C.mu}},"\u21A9 Riapri"):
+            [
+              e("button",{key:"a",onClick:function(){
+                if(acc<=0){setModal({em:"\u{1F937}",tit:"Non hai inserito nulla",msg:"Per "+s.nome+" non ci sono ancora spese registrate in questo ciclo. Usa \u201c= Previsto\u201d se l'hai pagata per intero.",buttons:[{lbl:"OK"}]});return;}
+                confermaFissa(s,acc);
+              },style:{background:C.gn,color:"#fff",border:"none",borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}},"\u2705 Confermo \u20AC"+fm(acc)),
+              e("button",{key:"b",onClick:function(){confermaFissa(s,s.prev);},
+                style:{background:"#fff",color:C.nv,border:"1.5px solid "+C.nv,borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}},"= Previsto \u20AC"+f0(s.prev)),
+              e("button",{key:"c",onClick:function(){blindaFissa(s);},
+                style:{background:"#fff",color:C.aD,border:"1.5px solid "+C.gd,borderRadius:8,padding:"7px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}},"\u{1F512} Blinda")
+            ]
+          ),
+          // salvadanaio della voce
+          (s.sav&&Math.abs(s.sav)>0.004)?e("div",{style:{paddingLeft:26,marginTop:6}},
+            e("span",{style:{fontSize:10,fontWeight:700,color:s.sav>0?C.gn:C.rd}},"\u{1F416} totale voce: "+(s.sav>0?"+":"")+"\u20AC"+fm(s.sav))
           ):null
         );
       })
@@ -1157,9 +1494,57 @@ function App(){
           e("button",{onClick:function(){
             if(fImp<=0)return;if(fTipo==="fissa"&&!fId)return;
             var f=fTipo==="fissa"?fisseDisp.find(function(x){return x.id===fId;}):null;
-            setSpV(spV.concat([{id:mkId(),imp:fImp,desc:fDesc,data:ogS,tipo:fTipo,fId:fTipo==="fissa"?fId:null,cat:fTipo==="extra"?fCat:null,lbl:f?f.icon+" "+f.nome:fCat||"Altro",chi:user}]));
-            setFImp(0);setFDesc("");setShowForm(false);
+            var imp0=fImp,desc0=fDesc,cat0=fCat,tipo0=fTipo,fId0=fId;
+            var doSalva=function(){
+              setSpV(function(prev){return prev.concat([{id:mkId(),imp:imp0,desc:desc0,data:ogS,tipo:tipo0,fId:tipo0==="fissa"?fId0:null,cat:tipo0==="extra"?cat0:null,lbl:f?f.icon+" "+f.nome:cat0||"Altro",chi:user}]);});
+              if(tipo0==="extra"&&roundUp>0){
+                var ru=Math.ceil(imp0/roundUp)*roundUp-imp0;
+                if(ru>0.004){setSalvRisp(function(v){return v+ru;});setSalvCiclo(function(v){return v+ru;});setRoundTot(function(v){return v+ru;});}
+              }
+              setFImp(0);setFDesc("");setShowForm(false);
+            };
+            var mkGoal=function(p){
+              setGoals(function(prev){return prev.concat([{id:mkId(),desc:desc0||cat0,imp:imp0,cat:cat0,pct:p,acc:0,ts:Date.now(),chi:user}]);});
+              setFImp(0);setFDesc("");setShowForm(false);
+            };
+            // ===== v16: ATTRITO PSICOLOGICO con finestre interne (solo spese extra) =====
+            if(fTipo==="extra"){
+              if(restaOggi<0){
+                setModal({em:"\u{1F6A8}",tit:"Sei GI\u00c0 in negativo di \u20AC"+fm(Math.abs(restaOggi)),
+                  msg:"Altri \u20AC"+fm(imp0)+" peggiorano il budget di TUTTI i giorni che restano. Se non \u00e8 indispensabile, lascia perdere.",
+                  buttons:[{lbl:"\u{1F6D1} Lascia perdere (bravo)"},{lbl:"Era indispensabile, salva",danger:true,fn:doSalva}]});
+                return;
+              }
+              if(fImp>restaOggi){
+                setModal({em:"\u{1F6A8}",tit:"Questa spesa ti manda in NEGATIVO",
+                  msg:"Sfori di \u20AC"+fm(fImp-restaOggi)+" e il budget di domani scende."+((tassa>0&&streak>0)?" \u{1F525} E bruci la tua serie di "+streak+" giorni!":""),
+                  buttons:[{lbl:"\u{1F6D1} Lascia perdere"},{lbl:"\u{1F3AF} Fanne un obiettivo",fn:function(){mkGoal(100);}},{lbl:"Salva lo stesso",danger:true,fn:doSalva}]});
+                return;
+              }
+              if(!isEss(fCat)&&fImp>=Math.max(15,bOggi*0.5)){
+                setModal({em:"\u{1F914}",tit:"\u20AC"+fm(imp0)+" per un desiderio",
+                  msg:"\u00c8 "+(cat0||"un extra")+", non una necessit\u00e0. Idea furba: fanne un obiettivo \u2014 la tassa risparmio lo paga sera dopo sera, e a cifra raggiunta decidi a mente fredda.",
+                  buttons:[{lbl:"\u{1F3AF} S\u00ec, fanne un obiettivo",fn:function(){mkGoal(100);}},{lbl:"Compra subito",danger:true,fn:doSalva}]});
+                return;
+              }
+            }
+            doSalva();
           },style:{background:C.gn,color:"#fff",border:"none",borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer"}},"Salva"),
+          fTipo==="extra"?e("button",{onClick:function(){
+            if(fImp<=0){setModal({em:"\u270F\uFE0F",tit:"Manca l'importo",msg:"Scrivi prima quanto costa il tuo obiettivo.",buttons:[{lbl:"OK"}]});return;}
+            var imp0=fImp,desc0=fDesc||fCat,cat0=fCat;
+            var mkG=function(p){
+              setGoals(function(prev){return prev.concat([{id:mkId(),desc:desc0,imp:imp0,cat:cat0,pct:p,acc:0,ts:Date.now(),chi:user}]);});
+              setFImp(0);setFDesc("");setShowForm(false);
+              setModal({em:"\u{1F3AF}",tit:"Obiettivo creato!",msg:"Da stasera il "+p+"% della tassa risparmio lavora per \u201c"+desc0+"\u201d. Lo trovi in Home con la barra di avanzamento.",buttons:[{lbl:"\u{1F4AA} Vai"}]});
+            };
+            setModal({em:"\u{1F3AF}",tit:"Quanta tassa dedicargli?",
+              msg:"\u201c"+desc0+"\u201d \u2014 \u20AC"+fm(imp0)+". Scegli la quota del risparmio giornaliero"+(tassa>0?" (\u20AC"+fm(tassa)+"/gg)":"")+" da destinargli:",
+              buttons:[{lbl:"Tutta (100%)"+(tassa>0?" \u00b7 \u2248"+Math.ceil(imp0/tassa)+" gg":""),fn:function(){mkG(100);}},
+                       {lbl:"Met\u00e0 (50%)"+(tassa>0?" \u00b7 \u2248"+Math.ceil(imp0/(tassa*0.5))+" gg":""),fn:function(){mkG(50);}},
+                       {lbl:"Un quarto (25%)"+(tassa>0?" \u00b7 \u2248"+Math.ceil(imp0/(tassa*0.25))+" gg":""),fn:function(){mkG(25);}},
+                       {lbl:"Annulla"}]});
+          },style:{background:C.gd,color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:700,cursor:"pointer"}},"\u{1F3AF} Obiettivo"):null,
           e("button",{onClick:function(){setShowForm(false);},style:{background:"none",border:"1.5px solid "+C.mu,borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",color:C.mu}},"Annulla")
         )
       ):e("button",{onClick:function(){setShowForm(true);},style:{width:"100%",padding:11,borderRadius:10,border:"none",background:C.aD,color:"#fff",fontWeight:700,fontSize:15,cursor:"pointer"}},"+ Aggiungi spesa"),
@@ -1237,12 +1622,28 @@ function App(){
           e("div",{style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}},[0,1,2,3,5,10].map(function(t){return e("button",{key:t,onClick:function(){setTassa(t);},style:{padding:"8px 14px",borderRadius:10,border:"2px solid "+(tassa===t?C.gd:C.ln),background:tassa===t?C.aL:"#fff",fontWeight:tassa===t?900:600,fontSize:15,cursor:"pointer",color:tassa===t?C.aD:C.mu}},"\u20AC"+t);})),
           e("input",{type:"number",inputMode:"decimal",value:tassa===0?"":tassa,onChange:function(ev){setTassa(parseFloat(ev.target.value)||0);},placeholder:"Altro importo",style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}})
         ),
+        e("div",{style:{marginBottom:16}},
+          e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1FA99} Arrotonda le spese (micro-risparmio)"),
+          e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},"Ogni spesa extra viene arrotondata: la differenza finisce nel salvadanaio senza che te ne accorga."),
+          e("div",{style:{display:"flex",gap:6}},[{v:0,l:"Spento"},{v:1,l:"al \u20AC1"},{v:5,l:"ai \u20AC5"}].map(function(o){
+            return e("button",{key:o.v,onClick:function(){setRoundUp(o.v);},style:{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(roundUp===o.v?C.gd:C.ln),background:roundUp===o.v?C.aL:"#fff",fontWeight:roundUp===o.v?900:600,fontSize:13,cursor:"pointer",color:roundUp===o.v?C.aD:C.mu}},o.l);
+          }))
+        ),
         e("div",null,e("div",{style:{fontSize:13,fontWeight:700,marginBottom:6}},"\u{1F39A} Risparmi \u2194 Svago"),
           e("div",{style:{display:"flex",alignItems:"center",gap:10}},
             e("span",{style:{fontSize:13,fontWeight:700}},"\u{1F437} "+pctR+"%"),
             e("input",{type:"range",min:0,max:100,step:10,value:pctR,onChange:function(ev){setPctR(parseInt(ev.target.value));},style:{flex:1}}),
             e("span",{style:{fontSize:13,fontWeight:700}},"\u{1F389} "+(100-pctR)+"%")
           )
+        )
+      ),
+      e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
+        e("div",{style:{fontWeight:800,fontSize:15,marginBottom:4,color:C.gD}},"\u{1F4BE} Backup dei dati"),
+        e("div",{style:{fontSize:12,color:C.mu,marginBottom:10}},"Scarica una copia di sicurezza di tutto (spese, salvadanai, impostazioni). Utile se JSONBin dovesse dare problemi."),
+        e("button",{onClick:scaricaBackup,style:{width:"100%",padding:12,borderRadius:10,border:"none",background:C.nv,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer",marginBottom:8}},"\u{1F4E5} Scarica backup"),
+        e("label",{style:{display:"block",width:"100%",padding:12,borderRadius:10,border:"2px dashed "+C.ln,textAlign:"center",fontWeight:700,fontSize:13,cursor:"pointer",color:C.mu,boxSizing:"border-box"}},
+          "\u{1F4C2} Ripristina da file\u2026",
+          e("input",{type:"file",accept:".json,application/json",style:{display:"none"},onChange:function(ev){ripristinaBackup(ev.target.files&&ev.target.files[0]);ev.target.value="";}})
         )
       ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.bl}},
@@ -1254,6 +1655,19 @@ function App(){
           e("button",{onClick:function(){if(confirm("Reset spese?")){setDelIds(delIds.concat(spV.map(function(x){return x.id;})).slice(-300));setSpV([]);}},style:{background:C.rd,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset spese"),
           e("button",{onClick:function(){if(confirm("RESET TUTTO?")){setDelIds(delIds.concat(spV.map(function(x){return x.id;})).slice(-300));setSpV([]);setSf(SF0);setResid(0);setSyncNum(0);}},style:{background:C.mu,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset tutto")
         )
+      ),
+      e("div",{style:{textAlign:"center",fontSize:10,color:C.mu,marginBottom:12}},"Budget Famiglia v16 \u00b7 coach emotivo \u00b7 obiettivi di risparmio \u00b7 50/30/20 \u00b7 arrotondamenti \u00b7 streak \u00b7 backup")
+    ):null,
+    // ===== v16: FINESTRA INTERNA (funziona anche dove i popup di sistema sono bloccati) =====
+    modal?e("div",{style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}},
+      e("div",{style:{background:"#fff",borderRadius:18,padding:"22px 18px",maxWidth:340,width:"100%",textAlign:"center",boxShadow:"0 10px 40px rgba(0,0,0,.3)"}},
+        modal.em?e("div",{style:{fontSize:44,lineHeight:1.1,marginBottom:6}},modal.em):null,
+        e("div",{style:{fontSize:16,fontWeight:900,color:C.gD,marginBottom:8}},modal.tit),
+        modal.msg?e("div",{style:{fontSize:13,color:C.gD,fontWeight:500,lineHeight:1.5,marginBottom:14}},modal.msg):null,
+        (modal.buttons||[{lbl:"OK"}]).map(function(b,i){
+          return e("button",{key:i,onClick:function(){setModal(null);if(b.fn)b.fn();},
+            style:{display:"block",width:"100%",padding:"11px 10px",marginTop:i>0?8:0,borderRadius:10,border:b.danger?"2px solid "+C.rd:"none",background:b.danger?"#fff":(i===0?C.gn:C.ln),color:b.danger?C.rd:(i===0?"#fff":C.gD),fontWeight:800,fontSize:13,cursor:"pointer"}},b.lbl);
+        })
       )
     ):null
   );
