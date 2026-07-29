@@ -484,6 +484,7 @@ function App(){
   var _ms=us([]),monSel=_ms[0],setMonSel=_ms[1];                    // voci scelte per il monitoraggio
   var _mo=us(false),monOpen=_mo[0],setMonOpen=_mo[1];               // selettore monitoraggio aperto
   var _ef=us(false),editF=_ef[0],setEditF=_ef[1];                   // modalita' modifica voci fisse
+  var _pt=us(false),persTax=_pt[0],setPersTax=_pt[1];               // pannello personalizza tassa risparmio
   var _evit=us(0),evitati=_evit[0],setEvitati=_evit[1];           // euro NON spesi grazie alla regola
   var _rTot=us(0),roundTot=_rTot[0],setRoundTot=_rTot[1];         // totale arrotondamenti
   var _rUp=us(0),roundUp=_rUp[0],setRoundUp=_rUp[1];              // 0=off, 1=euro, 5=cinque euro
@@ -776,8 +777,8 @@ function App(){
         e("div",{style:{fontSize:40,marginBottom:8}},"\u{1F44B}"),
         e("div",{style:{fontSize:20,fontWeight:900,color:C.gD,marginBottom:16}},"Chi sei?"),
         e("div",{style:{display:"flex",gap:12,justifyContent:"center"}},
-          e("button",{onClick:function(){setUser("Alfio");localStorage.setItem("budget-user","Alfio");},style:{padding:"16px 30px",borderRadius:14,border:"2px solid "+C.gn,background:C.gL,fontSize:16,fontWeight:800,cursor:"pointer",color:C.gD}},"\u{1F468} Alfio"),
-          e("button",{onClick:function(){setUser("Moglie");localStorage.setItem("budget-user","Moglie");},style:{padding:"16px 30px",borderRadius:14,border:"2px solid "+C.pu,background:C.pL,fontSize:16,fontWeight:800,cursor:"pointer",color:C.pu}},"\u{1F469} Moglie")
+          e("button",{onClick:function(){setUser("Alfredo");localStorage.setItem("budget-user","Alfredo");},style:{padding:"16px 30px",borderRadius:14,border:"2px solid "+C.gn,background:C.gL,fontSize:16,fontWeight:800,cursor:"pointer",color:C.gD}},"\u{1F468} Alfredo"),
+          e("button",{onClick:function(){setUser("Valentina");localStorage.setItem("budget-user","Valentina");},style:{padding:"16px 30px",borderRadius:14,border:"2px solid "+C.pu,background:C.pL,fontSize:16,fontWeight:800,cursor:"pointer",color:C.pu}},"\u{1F469} Valentina")
         )
       )
     );
@@ -971,6 +972,12 @@ function App(){
   var toggleMon=function(k){
     setMonSel(function(prev){var p=prev||[];return p.indexOf(k)>=0?p.filter(function(x){return x!==k;}):p.concat([k]);});
   };
+  // ===== v16: SUDDIVISIONE SALVADANAIO =====
+  var obiettivi=goals.filter(function(g){return g.tipo==null||g.tipo==="obiettivo";});
+  var fondi=goals.filter(function(g){return g.tipo==="persona"||g.tipo==="comune";});
+  var totPrenotato=goals.reduce(function(a,g){return a+(g.acc||0);},0);
+  var quotaLibera=Math.max(0,salvRisp-totPrenotato);
+  var sommaPct=goals.reduce(function(a,g){return a+(g.pct||0);},0);
   var ripBase=ripPct==="stip"?(stip>0?stip:ripTot):ripTot;
   // Azzeramento risparmi-del-ciclo quando inizia un nuovo ciclo (paga)
   ue(function(){
@@ -1014,9 +1021,12 @@ function App(){
               // quota del risparmio del giorno destinata agli obiettivi
               var rimane=rispD;
               goalsLoc.forEach(function(g){
-                if(g.pct>0&&g.acc<g.imp&&rimane>0.004){
-                  var share=Math.min(rimane,rispD*g.pct/100,g.imp-g.acc);
-                  if(share>0){g.acc=(g.acc||0)+share;rimane-=share;goalsTouched=true;}
+                if(g.pct>0&&rimane>0.004){
+                  var cap=(g.imp!=null)?Math.max(0,g.imp-(g.acc||0)):Infinity; // fondi persona/comune: nessun tetto
+                  if(cap>0.004){
+                    var share=Math.min(rimane,rispD*g.pct/100,cap);
+                    if(share>0){g.acc=(g.acc||0)+share;rimane-=share;goalsTouched=true;}
+                  }
                 }
               });
             }
@@ -1126,8 +1136,63 @@ function App(){
     setEvitati(function(v){return v+g.imp;});
     setModal({em:"\u{1F3C6}",tit:"Hai battuto l'impulso",msg:"\u20AC"+fm(g.imp)+" NON spesi. E i \u20AC"+fm(g.acc||0)+" gi\u00e0 accumulati restano tuoi, nel salvadanaio. Totale evitato finora: \u20AC"+fm(evitati+g.imp)+".",buttons:[{lbl:"\u{1F389} Bene cos\u00ec"}]});
   };
+  // ===== v16: VERSAMENTO IMMEDIATO (sposta soldi gia' risparmiati verso un fondo/obiettivo) =====
+  var versaOra=function(id,importo){
+    var q=Math.max(0,salvRisp-goals.reduce(function(a,g){return a+(g.acc||0);},0));
+    var imp=Math.max(0,Math.min(importo,q));
+    if(imp<=0.004)return;
+    setGoals(function(prev){return prev.map(function(x){
+      if(x.id!==id)return x;
+      var nuovo=(x.acc||0)+imp;
+      if(x.imp!=null&&nuovo>x.imp)nuovo=x.imp; // non oltre il traguardo
+      return Object.assign({},x,{acc:nuovo});
+    });});
+  };
+  var apriVersa=function(g){
+    var q=Math.max(0,salvRisp-goals.reduce(function(a,x){return a+(x.acc||0);},0));
+    if(q<=0.004){setModal({em:"\u{1F4B0}",tit:"Niente da versare",msg:"Nel salvadanaio non ci sono soldi liberi: sono gi\u00e0 tutti assegnati ai fondi, oppure il salvadanaio \u00e8 vuoto.",buttons:[{lbl:"OK"}]});return;}
+    var spazio=(g.imp!=null)?Math.max(0,g.imp-(g.acc||0)):q;
+    var pct=g.pct||0;
+    var bts=[];
+    if(pct>0){var vp=Math.min(q,spazio,q*pct/100);if(vp>0.004)bts.push({lbl:pct+"% del libero = \u20AC"+fm(vp),fn:function(){versaOra(g.id,vp);}});}
+    var meta=Math.min(q,spazio,q*0.5);if(meta>0.004)bts.push({lbl:"Met\u00e0 = \u20AC"+fm(meta),fn:function(){versaOra(g.id,meta);}});
+    var tutto=Math.min(q,spazio);bts.push({lbl:(g.imp!=null&&spazio<q?"Fino al traguardo = \u20AC":"Tutto il libero = \u20AC")+fm(tutto),fn:function(){versaOra(g.id,tutto);}});
+    bts.push({lbl:"Annulla"});
+    setModal({em:"\u{1F4B8}",tit:"Versa subito in "+g.desc,
+      msg:"Salvadanaio libero: \u20AC"+fm(q)+" (risparmi non ancora assegnati). Questi soldi restano nel salvadanaio, li \u201cprenoti\u201d per "+g.desc+".",buttons:bts});
+  };
   var goalSetPct=function(id,p){
     setGoals(goals.map(function(x){return x.id===id?Object.assign({},x,{pct:p}):x;}));
+  };
+  // ===== v16: FONDI (persona / comune) — obiettivi senza traguardo che accumulano =====
+  var COLP={"Alfredo":C.gn,"Valentina":C.pu,"Figlia":"#e11d48","Comune":C.nv};
+  var ICOP={"Alfredo":"\u{1F468}","Valentina":"\u{1F469}","Figlia":"\u{1F467}","Comune":"\u{1F46A}"};
+  var aggiungiFondo=function(chi){
+    var nome=chi==="Comune"?"Fondo comune":"Fondo "+chi;
+    if(goals.some(function(g){return g.tipo!=="obiettivo"&&g.chi===chi;})){
+      setModal({em:"\u26A0\uFE0F",tit:"Fondo gi\u00e0 presente",msg:"Il fondo di "+chi+" esiste gi\u00e0.",buttons:[{lbl:"OK"}]});return;
+    }
+    var t=window.prompt("Vuoi un traguardo per "+nome+"?\n\nScrivi la cifra da raggiungere (es. 500), oppure lascia VUOTO per accumulare senza limite:","");
+    if(t===null)return;
+    var target=parseFloat((t||"").replace(",","."))||null;
+    if(target!=null&&target<=0)target=null;
+    var nid="fnd"+Date.now();
+    setGoals(goals.concat([{id:nid,desc:nome,tipo:chi==="Comune"?"comune":"persona",chi:chi,imp:target,pct:0,acc:0,cat:null,ts:Date.now(),chi_add:user}]));
+    setModal({em:ICOP[chi]||"\u{1F416}",tit:nome+" creato!",
+      msg:(target!=null?"Traguardo \u20AC"+fm(target)+". ":"")+"Ora imposta la sua percentuale della tassa qui sotto, e se vuoi usa \u{1F4B8} Versa per spostarci subito una parte del salvadanaio.",buttons:[{lbl:"\u{1F44D} Ok"}]});
+  };
+  var prelevaFondo=function(g){
+    setModal({em:ICOP[g.chi]||"\u{1F416}",tit:"Preleva da "+g.desc,
+      msg:"Nel fondo ci sono \u20AC"+fm(g.acc||0)+". Prelevando, i soldi escono dal salvadanaio (li hai usati/spostati) e il contatore riparte da zero.",
+      buttons:[{lbl:"\u{1F4B6} Preleva tutto",fn:function(){
+        setSalvRisp(function(v){return Math.max(0,v-(g.acc||0));});
+        setGoals(function(prev){return prev.map(function(x){return x.id===g.id?Object.assign({},x,{acc:0}):x;});});
+      }},{lbl:"Annulla"}]});
+  };
+  var eliminaFondo=function(g){
+    setModal({em:"\u{1F5D1}\uFE0F",tit:"Eliminare "+g.desc+"?",
+      msg:(g.acc>0.004?"Il fondo contiene \u20AC"+fm(g.acc)+": eliminandolo, quei soldi tornano liberi nel salvadanaio (non prenotati).":"Il fondo verr\u00e0 rimosso."),
+      buttons:[{lbl:"\u{1F5D1}\uFE0F Elimina",danger:true,fn:function(){setGoals(function(prev){return prev.filter(function(x){return x.id!==g.id;});});}},{lbl:"Annulla"}]});
   };
 
   var tabs=[{id:"home",l:"Home",em:"\u{1F4CA}"},{id:"fisse",l:"Fisse",em:"\u{1F3E6}"},{id:"spese",l:"Spese",em:"\u{1F4B8}"},{id:"sync",l:"Invia",em:"\u{1F4E4}"},{id:"cfg",l:"Config",em:"\u2699"}];
@@ -1136,7 +1201,7 @@ function App(){
     // HEADER
     e("div",{style:{padding:"14px 6px 6px",textAlign:"center"}},
       e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
-        e("span",{style:{fontSize:12,fontWeight:700,color:user==="Alfio"?C.gn:C.pu,background:user==="Alfio"?C.gL:C.pL,borderRadius:8,padding:"4px 10px"}},(user==="Alfio"?"\u{1F468} ":"\u{1F469} ")+user),
+        e("span",{style:{fontSize:12,fontWeight:700,color:user==="Alfredo"?C.gn:C.pu,background:user==="Alfredo"?C.gL:C.pL,borderRadius:8,padding:"4px 10px"}},(user==="Alfredo"?"\u{1F468} ":"\u{1F469} ")+user),
         e("span",{style:{fontSize:11,fontWeight:700,color:C.mu,background:C.ln,borderRadius:8,padding:"4px 10px"}},(online?"\u{1F7E2} Sincronizzato":"\u26AA Offline"))
       ),
       e("div",{style:{fontSize:11,fontWeight:700,color:C.gn,letterSpacing:2}},"BUDGET FAMIGLIA"),
@@ -1192,16 +1257,23 @@ function App(){
         )
       ),
       // (v16: il vecchio allarme sforo/avanzo e' sostituito dal Coach Emotivo qui sopra)
-      e("div",{style:{display:"flex",gap:8,marginBottom:10}},
-        e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
-          e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4D0} Budget iniziale"),
-          e("div",{style:{fontSize:20,fontWeight:800,color:C.pu}},"\u20AC "+fm(bIni)),
-          e("div",{style:{fontSize:10,color:C.mu}},"di partenza")
+      // TRE BUDGET IN FILA: ieri (partenza) - oggi - domani
+      e("div",{style:{display:"flex",gap:6,marginBottom:10}},
+        e("div",{style:{flex:1,minWidth:0,background:C.pL,borderRadius:12,padding:"10px 8px",border:"1.5px solid "+C.pu+"33",textAlign:"center"}},
+          e("div",{style:{fontSize:9,color:C.pu,fontWeight:800,letterSpacing:.2}},"\u{1F4D0} INIZIALE"),
+          e("div",{style:{fontSize:17,fontWeight:900,color:C.pu,fontFamily:"monospace",margin:"2px 0"}},"\u20AC"+fm(bIni)),
+          e("div",{style:{fontSize:9,color:C.mu}},"di partenza")
         ),
-        e("div",{style:{flex:1,background:C.cd,borderRadius:12,padding:"12px 14px",border:"1.5px solid "+C.ln}},
-          e("div",{style:{fontSize:11,color:C.mu,fontWeight:600}},"\u{1F4C5} Budget di oggi"),
-          e("div",{style:{fontSize:20,fontWeight:800,color:C.gD}},"\u20AC "+fm(bOggi)),
-          e("div",{style:{fontSize:10,color:C.mu}},"residuo \u20AC"+f0(residLive)+" \u00b7 "+gDiv+" gg")
+        e("div",{style:{flex:1.15,minWidth:0,background:C.aL,borderRadius:12,padding:"10px 8px",border:"2.5px solid "+C.gd,textAlign:"center",boxShadow:"0 2px 8px "+C.gd+"33"}},
+          e("div",{style:{fontSize:9,color:C.aD,fontWeight:900,letterSpacing:.2}},"\u{1F4C5} OGGI"),
+          e("div",{style:{fontSize:19,fontWeight:900,color:C.gD,fontFamily:"monospace",margin:"2px 0"}},"\u20AC"+fm(bOggi)),
+          e("div",{style:{fontSize:9,color:C.mu}},f0(residLive)+"\u20AC \u00f7 "+gDiv+"gg")
+        ),
+        e("div",{style:{flex:1,minWidth:0,background:C.bL,borderRadius:12,padding:"10px 8px",border:"1.5px solid "+C.bl+"33",textAlign:"center"}},
+          e("div",{style:{fontSize:9,color:C.bl,fontWeight:800,letterSpacing:.2}},"\u{1F4C6} DOMANI"),
+          e("div",{style:{fontSize:17,fontWeight:900,color:C.bl,fontFamily:"monospace",margin:"2px 0"}},"\u20AC"+fm(bDomani)),
+          e("div",{style:{fontSize:10,fontWeight:900,color:dDom>0.004?C.gn:(dDom<-0.004?C.rd:C.mu)}},
+            (dDom>0.004?"\u25B2 +\u20AC":(dDom<-0.004?"\u25BC \u2212\u20AC":"\u25AC \u20AC"))+fm(Math.abs(dDom)))
         )
       ),
       // FORMULA: Stipendio - Fisse = Disponibile / 31
@@ -1289,8 +1361,8 @@ function App(){
           e("div",null,"\u{1F3AF} Obiettivo: risparmia \u20AC "+fm(tassa)+"/giorno"),
           e("div",{style:{fontWeight:800,color:rispOggi>=tassa?C.gn:C.aD,marginTop:2}},"Oggi hai messo da parte: \u20AC "+fm(rispOggi)+(rispOggi>=tassa?" \u2705":" (su \u20AC "+fm(tassa)+")"))
         ):e("div",{style:{fontSize:12,color:C.mu,marginBottom:10}},"Imposta un obiettivo di risparmio giornaliero in Config \u2699"),
-        (roundTot>0||evitati>0||goals.length>0)?e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},
-          (goals.length>0?"\u{1F3AF} \u20AC"+fm(goals.reduce(function(a,g){return a+(g.acc||0);},0))+" destinati agli obiettivi \u00b7 ":"")+(roundTot>0?"\u{1FA99} \u20AC"+fm(roundTot)+" da arrotondamenti":"")+(roundTot>0&&evitati>0?" \u00b7 ":"")+(evitati>0?"\u{1F6E1}\uFE0F \u20AC"+fm(evitati)+" evitati":"")
+        (roundTot>0||evitati>0)?e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},
+          (roundTot>0?"\u{1FA99} \u20AC"+fm(roundTot)+" da arrotondamenti":"")+(roundTot>0&&evitati>0?" \u00b7 ":"")+(evitati>0?"\u{1F6E1}\uFE0F \u20AC"+fm(evitati)+" evitati":"")
         ):null,
         salvRisp>0?e("button",{onClick:function(){setRompiOpen(true);},style:{width:"100%",padding:12,borderRadius:10,border:"none",background:C.gd,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"\u{1F528} Rompi salvadanaio"):null,
         rompiOpen?e("div",{style:{marginTop:10,background:"#fafaf5",borderRadius:10,padding:12,border:"1px solid "+C.ln}},
@@ -1304,10 +1376,10 @@ function App(){
         ):null
       ),
       // ===== v16: OBIETTIVI DI RISPARMIO =====
-      goals.length>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
+      obiettivi.length>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
         e("div",{style:{fontSize:15,fontWeight:900,color:C.gD,marginBottom:4}},"\u{1F3AF} Obiettivi di risparmio"),
         e("div",{style:{fontSize:11,color:C.mu,marginBottom:10}},"Ogni sera una quota della tassa risparmio va verso i tuoi obiettivi. A cifra raggiunta, decidi tu: comprare o tenerti i soldi."),
-        goals.map(function(g){
+        obiettivi.map(function(g){
           var acc=g.acc||0;
           var pctDone=g.imp>0?Math.min(100,acc/g.imp*100):0;
           var fatto=acc>=g.imp-0.004;
@@ -1331,13 +1403,92 @@ function App(){
               [0,25,50,100].map(function(p){
                 return e("button",{key:p,onClick:function(){goalSetPct(g.id,p);},style:{padding:"3px 8px",borderRadius:6,border:"1.5px solid "+((g.pct||0)===p?C.gd:C.ln),background:(g.pct||0)===p?C.aL:"#fff",fontWeight:(g.pct||0)===p?900:600,fontSize:10,cursor:"pointer",color:(g.pct||0)===p?C.aD:C.mu}},p+"%");
               }),
-              e("button",{onClick:function(){goalRinuncia(g);},style:{marginLeft:"auto",background:"none",border:"none",fontSize:10,color:C.mu,textDecoration:"underline",cursor:"pointer"}},"rinuncia")
+              e("button",{onClick:function(){apriVersa(g);},style:{padding:"3px 9px",borderRadius:6,border:"none",background:C.gd,color:"#fff",fontWeight:800,fontSize:10,cursor:"pointer"}},"\u{1F4B8} Versa")
             )
           );
         }),
         evitati>0?e("div",{style:{fontSize:11,fontWeight:800,color:C.gn,marginTop:8}},"\u{1F6E1}\uFE0F \u20AC"+fm(evitati)+" evitati finora rinunciando agli impulsi"):null
       ):null,
-      // ===== v16: BAROMETRO 50/30/20 =====
+      // ===== v16: FONDI + SUDDIVISIONE + PERSONALIZZA TASSA =====
+      e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gn}},
+        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}},
+          e("div",{style:{fontSize:15,fontWeight:900,color:C.gD}},"\u{1F4B0} Ho risparmiato"),
+          e("button",{onClick:function(){setPersTax(!persTax);},style:{background:persTax?C.gn:"#fff",color:persTax?"#fff":C.gn,border:"1.5px solid "+C.gn,borderRadius:8,padding:"6px 10px",fontSize:11,fontWeight:800,cursor:"pointer"}},persTax?"\u2705 Fine":"\u2699\uFE0F Personalizza")
+        ),
+        e("div",{style:{textAlign:"center",fontSize:30,fontWeight:900,color:C.gn,fontFamily:"monospace",marginBottom:2}},"\u20AC "+fm(salvRisp)),
+        e("div",{style:{textAlign:"center",fontSize:11,color:C.mu,marginBottom:12}},"totale nel salvadanaio \u00b7 tassa \u20AC"+fm(tassa)+"/giorno"),
+        // SUDDIVISIONE
+        (fondi.length>0||obiettivi.length>0||quotaLibera>0.004)?e("div",{style:{marginBottom:persTax?14:0}},
+          e("div",{style:{fontSize:11,fontWeight:800,color:C.mu,marginBottom:6}},"\u{1F4CA} COME \u00c8 SUDDIVISO"),
+          fondi.map(function(g){
+            var p=salvRisp>0?(g.acc||0)/salvRisp*100:0;
+            return e("div",{key:g.id,style:{marginBottom:8}},
+              e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:2}},
+                e("span",{style:{fontSize:15}},ICOP[g.chi]||"\u{1F416}"),
+                e("span",{style:{flex:1,fontSize:13,fontWeight:700,color:C.gD}},g.desc),
+                e("span",{style:{fontSize:14,fontWeight:900,fontFamily:"monospace",color:COLP[g.chi]||C.gn}},"\u20AC"+fm(g.acc||0)),
+                e("button",{onClick:function(){apriVersa(g);},style:{background:"none",border:"1px solid "+C.ln,borderRadius:7,padding:"3px 7px",fontSize:10,fontWeight:700,cursor:"pointer",color:C.gn}},"versa"),
+                e("button",{onClick:function(){prelevaFondo(g);},style:{background:"none",border:"1px solid "+C.ln,borderRadius:7,padding:"3px 7px",fontSize:10,fontWeight:700,cursor:"pointer",color:C.mu}},"preleva")
+              ),
+              e("div",{style:{background:C.ln,borderRadius:4,height:6,overflow:"hidden",marginLeft:23}},
+                e("div",{style:{width:Math.min(100,p)+"%",height:"100%",background:COLP[g.chi]||C.gn,borderRadius:4}}))
+            );
+          }),
+          obiettivi.filter(function(g){return (g.acc||0)>0.004;}).map(function(g){
+            var p=salvRisp>0?(g.acc||0)/salvRisp*100:0;
+            return e("div",{key:g.id,style:{marginBottom:8}},
+              e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:2}},
+                e("span",{style:{fontSize:15}},"\u{1F3AF}"),
+                e("span",{style:{flex:1,fontSize:13,fontWeight:700,color:C.gD}},g.desc),
+                e("span",{style:{fontSize:14,fontWeight:900,fontFamily:"monospace",color:C.aD}},"\u20AC"+fm(g.acc||0))
+              ),
+              e("div",{style:{background:C.ln,borderRadius:4,height:6,overflow:"hidden",marginLeft:23}},
+                e("div",{style:{width:Math.min(100,p)+"%",height:"100%",background:C.gd,borderRadius:4}}))
+            );
+          }),
+          quotaLibera>0.004?e("div",{style:{display:"flex",alignItems:"center",gap:8,marginTop:4,paddingTop:6,borderTop:"1px dashed "+C.ln}},
+            e("span",{style:{fontSize:15}},"\u{1F4B5}"),
+            e("span",{style:{flex:1,fontSize:12,fontWeight:600,color:C.mu}},"Libero (non assegnato)"),
+            e("span",{style:{fontSize:13,fontWeight:800,fontFamily:"monospace",color:C.mu}},"\u20AC"+fm(quotaLibera))
+          ):null
+        ):null,
+        // EDITOR PERSONALIZZA TASSA
+        persTax?e("div",{style:{background:"#f7f9f5",borderRadius:12,padding:12,marginTop:4,border:"1.5px solid "+C.ln}},
+          e("div",{style:{fontSize:11,color:C.gD,fontWeight:700,marginBottom:8,lineHeight:1.5}},"La percentuale \u00e8 quanta parte della tassa di ogni giorno va nel fondo, DA ORA IN POI. Per spostare subito soldi gi\u00e0 risparmiati, usa \u{1F4B8} Versa."),
+          goals.map(function(g){
+            var isFnd=(g.tipo==="persona"||g.tipo==="comune");
+            var col=isFnd?(COLP[g.chi]||C.gn):C.gd;
+            var ic=isFnd?(ICOP[g.chi]||"\u{1F416}"):"\u{1F3AF}";
+            var pieno=g.imp!=null&&(g.acc||0)>=g.imp-0.004;
+            var etich=g.imp!=null?(" \u00b7 \u20AC"+fm(g.acc||0)+"/"+fm(g.imp)):(" \u00b7 \u20AC"+fm(g.acc||0)+" accumulati");
+            var riga1=e("div",{style:{display:"flex",alignItems:"center",gap:6,marginBottom:6}},
+              e("span",{style:{fontSize:14}},ic),
+              e("span",{style:{flex:1,fontSize:12,fontWeight:700}},g.desc,e("span",{style:{fontSize:10,color:C.mu,fontWeight:600}},etich)),
+              isFnd?e("button",{onClick:function(){eliminaFondo(g);},style:{background:"none",border:"none",fontSize:14,cursor:"pointer",padding:"0 2px"}},"\u{1F5D1}\uFE0F"):null
+            );
+            var barra=g.imp!=null?e("div",{style:{background:C.ln,borderRadius:4,height:5,overflow:"hidden",marginBottom:6}},
+              e("div",{style:{width:Math.min(100,(g.acc||0)/g.imp*100)+"%",height:"100%",background:pieno?C.gd:col,borderRadius:4}})):null;
+            var presets=e("div",{style:{display:"flex",gap:4,alignItems:"center",flexWrap:"wrap"}},
+              e("span",{style:{fontSize:10,color:C.mu,fontWeight:700}},"quota tassa:"),
+              [0,25,50,75,100].map(function(p){
+                return e("button",{key:p,onClick:function(){goalSetPct(g.id,p);},style:{padding:"4px 8px",borderRadius:6,border:"1.5px solid "+((g.pct||0)===p?col:C.ln),background:(g.pct||0)===p?C.aL:"#fff",fontWeight:(g.pct||0)===p?900:600,fontSize:11,cursor:"pointer",color:(g.pct||0)===p?C.aD:C.mu}},p+"%");
+              }),
+              e("button",{onClick:function(){apriVersa(g);},style:{marginLeft:"auto",padding:"4px 10px",borderRadius:6,border:"none",background:col,color:"#fff",fontWeight:800,fontSize:11,cursor:"pointer"}},"\u{1F4B8} Versa")
+            );
+            return e("div",{key:g.id,style:{padding:"8px 0",borderBottom:"1px solid "+C.ln}},riga1,barra,presets);
+          }),
+          e("div",{style:{textAlign:"center",fontSize:12,fontWeight:800,marginTop:8,color:sommaPct>100?C.rd:C.gD}},
+            "Totale assegnato: "+sommaPct+"%"+(sommaPct>100?" \u26A0\uFE0F oltre 100%!":sommaPct<100?" \u00b7 il resto ("+(100-sommaPct)+"%) resta libero":" \u2705")),
+          e("div",{style:{fontSize:11,fontWeight:800,color:C.mu,marginTop:12,marginBottom:6}},"\u2795 AGGIUNGI FONDO"),
+          e("div",{style:{display:"flex",gap:5,flexWrap:"wrap"}},
+            ["Alfredo","Valentina","Figlia","Comune"].map(function(chi){
+              var gia=goals.some(function(g){return g.chi===chi&&g.tipo!=="obiettivo";});
+              return e("button",{key:chi,onClick:function(){if(!gia)aggiungiFondo(chi);},disabled:gia,style:{flex:"1 1 45%",padding:"8px 6px",borderRadius:9,border:"1.5px solid "+(gia?C.ln:(COLP[chi]||C.gn)),background:gia?"#f0f0ea":"#fff",color:gia?C.mu:(COLP[chi]||C.gn),fontWeight:800,fontSize:12,cursor:gia?"default":"pointer",opacity:gia?.6:1}},(ICOP[chi]||"")+" "+chi+(gia?" \u2713":""));
+            })
+          ),
+          e("div",{style:{fontSize:10,color:C.mu,marginTop:8,fontStyle:"italic"}},"Gli obiettivi (cuffie, pedale\u2026) si creano dalla scheda Spese con il bottone \u{1F3AF} Obiettivo.")
+        ):null
+      ),
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.pu}},
         e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2,textAlign:"center"}},"\u2696\uFE0F Barometro 50/30/20"),
         e("div",{style:{fontSize:10,color:C.mu,marginBottom:10,textAlign:"center",fontStyle:"italic"}},"Regola d'oro: max 50% necessit\u00e0, max 30% desideri, almeno 20% risparmio \u00b7 ciclo in corso"),
@@ -1488,7 +1639,10 @@ function App(){
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
       e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}},
         e("div",{style:{fontWeight:800,fontSize:17,color:C.gD}},"\u{1F3E6} Voci fisse"),
-        e("button",{onClick:function(){setEditF(!editF);},style:{background:editF?C.nv:"#fff",color:editF?"#fff":C.nv,border:"1.5px solid "+C.nv,borderRadius:8,padding:"6px 12px",fontSize:12,fontWeight:800,cursor:"pointer"}},editF?"\u2705 Fine":"\u270F\uFE0F Modifica")
+        e("div",{style:{display:"flex",gap:6}},
+          e("button",{onClick:function(){aggiungiFissa();},style:{background:"#fff",color:C.gn,border:"1.5px solid "+C.gn,borderRadius:8,padding:"6px 10px",fontSize:12,fontWeight:800,cursor:"pointer"}},"\u2795 Voce"),
+          e("button",{onClick:function(){setEditF(!editF);},style:{background:editF?C.nv:"#fff",color:editF?"#fff":C.nv,border:"1.5px solid "+C.nv,borderRadius:8,padding:"6px 10px",fontSize:12,fontWeight:800,cursor:"pointer"}},editF?"\u2705 Fine":"\u270F\uFE0F Modifica")
+        )
       ),
       e("div",{style:{fontSize:11,color:C.mu,marginBottom:12,lineHeight:1.5}},editF?"Cambia importi, nomi e icone. Puoi aggiungere voci tue ed eliminare quelle che non usi.":"Ogni voce pesa sul budget almeno il previsto. Quando hai finito di spenderci, confermala: se hai speso meno, la differenza va nel salvadanaio \u{1F416}."),
       editF?e("div",null,
@@ -1645,9 +1799,21 @@ function App(){
           e("button",{onClick:function(){setFTipo("fissa");},style:{flex:1,padding:8,borderRadius:8,border:"1.5px solid "+(fTipo==="fissa"?C.nv:C.ln),background:fTipo==="fissa"?C.bL:"#fff",fontWeight:fTipo==="fissa"?800:500,fontSize:13,cursor:"pointer"}},"\u{1F4CC} Fissa"),
           e("button",{onClick:function(){setFTipo("extra");},style:{flex:1,padding:8,borderRadius:8,border:"1.5px solid "+(fTipo==="extra"?C.aD:C.ln),background:fTipo==="extra"?C.aL:"#fff",fontWeight:fTipo==="extra"?800:500,fontSize:13,cursor:"pointer"}},"\u{1F4B8} Extra")
         ),
-        fTipo==="fissa"?e("select",{value:fId,onChange:function(ev){setFId(ev.target.value);},style:{width:"100%",padding:10,borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,marginBottom:8,boxSizing:"border-box"}},
-          e("option",{value:""},"\u2014 Seleziona \u2014"),
-          fisseDisp.map(function(f){return e("option",{key:f.id,value:f.id},f.icon+" "+f.nome+" (\u20AC"+f.prev+")");})
+        fTipo==="fissa"?e("div",{style:{display:"flex",gap:6,marginBottom:8}},
+          e("select",{value:fId,onChange:function(ev){setFId(ev.target.value);},style:{flex:1,minWidth:0,padding:10,borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,boxSizing:"border-box"}},
+            e("option",{value:""},"\u2014 Seleziona \u2014"),
+            fisseDisp.map(function(f){return e("option",{key:f.id,value:f.id},f.icon+" "+f.nome+" (\u20AC"+f.prev+")");})
+          ),
+          e("button",{onClick:function(){
+            var nome=window.prompt("Nome della nuova voce fissa (es. Assicurazione, Palestra\u2026):","");
+            if(nome===null||!nome.trim())return;
+            var ic=window.prompt("Emoji da usare (lasciando vuoto: \u{1F4E6}):","\u{1F4E6}");
+            var pv=window.prompt("Importo previsto al mese (\u20AC):","0");
+            if(pv===null)return;
+            var nid="fx"+Date.now();
+            setSf(function(prev){return prev.concat([{id:nid,nome:nome.trim(),prev:parseFloat((pv||"0").replace(",","."))||0,blind:false,icon:(ic||"\u{1F4E6}").trim().slice(0,3),sav:0}]);});
+            setFId(nid);
+          },style:{padding:"10px 12px",borderRadius:10,border:"1.5px solid "+C.nv,background:"#fff",color:C.nv,fontWeight:900,fontSize:14,cursor:"pointer",whiteSpace:"nowrap"}},"\u2795 Voce")
         ):e("div",{style:{display:"flex",gap:6,marginBottom:8}},
           e("select",{value:fCat,onChange:function(ev){setFCat(ev.target.value);},style:{flex:1,minWidth:0,padding:10,borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,boxSizing:"border-box"}},
             Object.keys(ALLC).map(function(c){return e("option",{key:c,value:c},ALLC[c].i+" "+c);})
@@ -1676,7 +1842,7 @@ function App(){
               setFImp(0);setFDesc("");setShowForm(false);
             };
             var mkGoal=function(p){
-              setGoals(function(prev){return prev.concat([{id:mkId(),desc:desc0||cat0,imp:imp0,cat:cat0,pct:p,acc:0,ts:Date.now(),chi:user}]);});
+              setGoals(function(prev){return prev.concat([{id:mkId(),desc:desc0||cat0,tipo:"obiettivo",imp:imp0,cat:cat0,pct:p,acc:0,ts:Date.now(),chi_add:user}]);});
               setFImp(0);setFDesc("");setShowForm(false);
             };
             // ===== v16: ATTRITO PSICOLOGICO con finestre interne (solo spese extra) =====
@@ -1705,17 +1871,34 @@ function App(){
           fTipo==="extra"?e("button",{onClick:function(){
             if(fImp<=0){setModal({em:"\u270F\uFE0F",tit:"Manca l'importo",msg:"Scrivi prima quanto costa il tuo obiettivo.",buttons:[{lbl:"OK"}]});return;}
             var imp0=fImp,desc0=fDesc||fCat,cat0=fCat;
-            var mkG=function(p){
-              setGoals(function(prev){return prev.concat([{id:mkId(),desc:desc0,imp:imp0,cat:cat0,pct:p,acc:0,ts:Date.now(),chi:user}]);});
+            var q0=Math.max(0,salvRisp-goals.reduce(function(a,x){return a+(x.acc||0);},0));
+            var mkG=function(p,acc0){
+              var nid=mkId();
+              setGoals(function(prev){return prev.concat([{id:nid,desc:desc0,tipo:"obiettivo",imp:imp0,cat:cat0,pct:p,acc:acc0||0,ts:Date.now(),chi_add:user}]);});
               setFImp(0);setFDesc("");setShowForm(false);
-              setModal({em:"\u{1F3AF}",tit:"Obiettivo creato!",msg:"Da stasera il "+p+"% della tassa risparmio lavora per \u201c"+desc0+"\u201d. Lo trovi in Home con la barra di avanzamento.",buttons:[{lbl:"\u{1F4AA} Vai"}]});
+              var pieno=(acc0||0)>=imp0-0.004;
+              setModal({em:pieno?"\u{1F389}":"\u{1F3AF}",tit:"Obiettivo creato!",
+                msg:(acc0>0.004?"Versati subito \u20AC"+fm(acc0)+" dal salvadanaio. ":"")+(pieno?"Gi\u00e0 al traguardo! Lo trovi in Home.":"Da stasera il "+p+"% della tassa lavora per \u201c"+desc0+"\u201d. Lo trovi in Home con la barra di avanzamento."),buttons:[{lbl:"\u{1F4AA} Vai"}]});
             };
-            setModal({em:"\u{1F3AF}",tit:"Quanta tassa dedicargli?",
-              msg:"\u201c"+desc0+"\u201d \u2014 \u20AC"+fm(imp0)+". Scegli la quota del risparmio giornaliero"+(tassa>0?" (\u20AC"+fm(tassa)+"/gg)":"")+" da destinargli:",
-              buttons:[{lbl:"Tutta (100%)"+(tassa>0?" \u00b7 \u2248"+Math.ceil(imp0/tassa)+" gg":""),fn:function(){mkG(100);}},
-                       {lbl:"Met\u00e0 (50%)"+(tassa>0?" \u00b7 \u2248"+Math.ceil(imp0/(tassa*0.5))+" gg":""),fn:function(){mkG(50);}},
-                       {lbl:"Un quarto (25%)"+(tassa>0?" \u00b7 \u2248"+Math.ceil(imp0/(tassa*0.25))+" gg":""),fn:function(){mkG(25);}},
-                       {lbl:"Annulla"}]});
+            var chiediPct=function(acc0){
+              setModal({em:"\u{1F3AF}",tit:"Quanta tassa dedicargli?",
+                msg:"\u201c"+desc0+"\u201d \u2014 \u20AC"+fm(imp0)+". Scegli la quota del risparmio giornaliero"+(tassa>0?" (\u20AC"+fm(tassa)+"/gg)":"")+" da destinargli da ora in poi:",
+                buttons:[{lbl:"Tutta (100%)",fn:function(){mkG(100,acc0);}},
+                         {lbl:"Met\u00e0 (50%)",fn:function(){mkG(50,acc0);}},
+                         {lbl:"Un quarto (25%)",fn:function(){mkG(25,acc0);}},
+                         {lbl:"Niente (0%)",fn:function(){mkG(0,acc0);}}]});
+            };
+            // 1) offro il versamento iniziale se c'e' salvadanaio libero
+            if(q0>0.5){
+              var vHalf=Math.min(q0,imp0*0.5),vFull=Math.min(q0,imp0);
+              setModal({em:"\u{1F4B8}",tit:"Partire con i soldi gi\u00e0 risparmiati?",
+                msg:"\u201c"+desc0+"\u201d costa \u20AC"+fm(imp0)+". Nel salvadanaio hai \u20AC"+fm(q0)+" liberi: vuoi spostarne subito una parte su questo obiettivo, oppure accumulare solo da ora in poi?",
+                buttons:[{lbl:"\u{1F4B0} Met\u00e0 subito (\u20AC"+fm(vHalf)+")",fn:function(){chiediPct(vHalf);}},
+                         (vFull>=imp0-0.004?{lbl:"\u2705 Tutto subito (\u20AC"+fm(vFull)+")",fn:function(){mkG(0,vFull);}}:{lbl:"\u{1F4B0} Pi\u00f9 possibile (\u20AC"+fm(vFull)+")",fn:function(){chiediPct(vFull);}}),
+                         {lbl:"\u23F3 Solo da ora (0 subito)",fn:function(){chiediPct(0);}}]});
+            }else{
+              chiediPct(0);
+            }
           },style:{background:C.gd,color:"#fff",border:"none",borderRadius:10,padding:"10px 14px",fontWeight:700,cursor:"pointer"}},"\u{1F3AF} Obiettivo"):null,
           e("button",{onClick:function(){setShowForm(false);},style:{background:"none",border:"1.5px solid "+C.mu,borderRadius:10,padding:"10px 20px",fontWeight:700,cursor:"pointer",color:C.mu}},"Annulla")
         )
