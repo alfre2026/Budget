@@ -495,6 +495,7 @@ function App(){
   var _busy=us(false),busy=_busy[0],setBusy=_busy[1];
   var _msg=us(""),msg=_msg[0],setMsg=_msg[1];
   var _nb=us(""),newBin=_nb[0],setNewBin=_nb[1];
+  var _sp=us(false),showPag=_sp[0],setShowPag=_sp[1]; // finestra "gia' pagata / da pagare"
   var spVRef=React.useRef(spV);
   ue(function(){spVRef.current=spV;},[spV]);
   var cfgModRef=React.useRef(0);
@@ -975,6 +976,15 @@ function App(){
     return ta-tb;
   });
   var prenotatoTot=prenotatoLista.reduce(function(a,x){return a+x.v;},0);
+  // Righe dell'estratto conto: ogni voce fissa gia' uscita, col saldo che scende passo passo
+  var _sal=contoIni;
+  var righeUscite=sf.map(function(s){
+    var v=s.blind?(s.pagato?s.prev:0):(s.confVal!=null?s.confVal:accOf(s));
+    var nota=s.blind?("uscita dal conto"+(s.gg?" \u00b7 "+lblAddebito(s):"")):(s.confVal!=null?"bolletta confermata":"acconti versati finora");
+    return{s:s,v:v,nota:nota};
+  }).filter(function(x){return x.v>0.004;});
+  righeUscite.forEach(function(r){_sal-=r.v;r.saldo=_sal;});
+  var nVarReali=spV.filter(function(s){return !s.fId&&inCiclo(s);}).length;
   var savFisseTot=sf.reduce(function(a,x){return a+(x.sav||0);},0);
   var liberoVero=contoOggi-prenotatoTot-salvRisp-savFisseTot;
   var fondoCassa=contoIni-stip;
@@ -2197,63 +2207,105 @@ function App(){
           })
         ):null
       ):null,
-      // Il calcolo
-      (contoAttivo&&contoOggi>0)?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:8}},"\u{1F9FE} Il calcolo",H("contoVerdetto")),
-        e("div",{style:{fontSize:12,fontFamily:"monospace",lineHeight:1.9,color:C.gD}},
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"Partenza ("+ci.iL+")"),e("span",{style:{fontWeight:800}},"\u20AC"+fm(contoIni))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u2212 Fisse uscite davvero"),e("span",null,"\u20AC"+fm(usciteFisseReali))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u2212 Spese variabili"),e("span",null,"\u20AC"+fm(usciteVarReali))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,(contoExtra>=0?"+":"\u2212")+" Fuori app"),e("span",null,"\u20AC"+fm(Math.abs(contoExtra)))),
-          e("div",{style:{display:"flex",justifyContent:"space-between",borderTop:"1.5px solid "+C.ln,marginTop:4,paddingTop:4}},e("span",{style:{fontWeight:800}},"= Dovrebbe esserci"),e("span",{style:{fontWeight:900}},"\u20AC"+fm(saldoAtteso))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",{style:{fontWeight:800}},"Letto in banca"),e("span",{style:{fontWeight:900}},"\u20AC"+fm(contoOggi))),
-          e("div",{style:{display:"flex",justifyContent:"space-between",color:Math.abs(deltaConto)<=2?C.gn:(deltaConto>2?C.bl:C.rd)}},e("span",{style:{fontWeight:900}},"Differenza"),e("span",{style:{fontWeight:900}},(deltaConto>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(deltaConto))))
+      // ===== ESTRATTO CONTO: ogni voce che si sottrae, con il saldo che scende =====
+      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F4C4} Estratto conto dell'app",H("contoVerdetto")),
+        e("div",{style:{fontSize:11,color:C.mu,marginBottom:10}},"riga per riga, come scende il saldo dal giorno paga"),
+        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.gL,borderRadius:8,padding:"8px 10px",marginBottom:6}},
+          e("span",{style:{fontSize:12,fontWeight:800,color:C.gD}},"Partenza "+ci.iL),
+          e("span",{style:{fontSize:15,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoIni))
         ),
-        e("div",{style:{fontSize:10,color:C.mu,marginTop:8,fontStyle:"italic",lineHeight:1.5}},"La tassa di risparmio e i salvadanai NON si sottraggono: quei soldi sono ancora sul conto, solo prenotati.")
-      ):null,
-      // Ancora prenotato
-      e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.aD}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F53B} Uscir\u00e0 ancora dal conto",H("contoPrenotato")),
-        e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},"soldi che vedi in banca ma se ne andranno"),
-        prenotatoLista.length===0?e("div",{style:{fontSize:12,color:C.mu}},"Niente in sospeso: tutte le voci fisse sono uscite o confermate. \u{1F44F}"):e("div",null,
-          prenotatoLista.map(function(x){
-            return e("div",{key:x.s.id,style:{display:"flex",alignItems:"center",gap:8,padding:"7px 0",borderBottom:"1px solid "+C.ln,fontSize:13}},
-              e("span",null,x.s.icon),
-              e("span",{style:{flex:1}},
-                e("div",{style:{fontWeight:700}},x.s.nome),
-                e("div",{style:{fontSize:10,color:scadutaNonSegnata(x.s)?C.rd:C.mu}},
-                  x.s.gg?((scadutaNonSegnata(x.s)?"\u23F0 doveva uscire il ":"esce intorno al ")+lblAddebito(x.s)):(x.s.blind?"blindata, non ancora uscita dal conto":"in corso: manca questo al previsto"))
-              ),
-              e("span",{style:{fontWeight:800,fontFamily:"monospace"}},"\u20AC"+fm(x.v)),
-              x.s.blind?e("button",{onClick:function(){var sid=x.s.id;setSf(function(prev){return prev.map(function(y){return y.id===sid?Object.assign({},y,{pagato:true}):y;});});},style:{background:C.gL,border:"1px solid "+C.gn,borderRadius:8,padding:"5px 8px",fontSize:11,fontWeight:800,color:C.gn,cursor:"pointer",whiteSpace:"nowrap"}},"\u2713 uscita"):null
-            );
-          }),
-          e("div",{style:{display:"flex",justifyContent:"space-between",marginTop:8,fontSize:13,fontWeight:900,color:C.aD}},
-            e("span",null,"Totale che uscir\u00e0"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(usciraTot))
+        righeUscite.length>0?e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"USCITE GI\u00c0 AVVENUTE"):null,
+        righeUscite.map(function(r,k){
+          return e("div",{key:r.s.id,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:14}},r.s.icon),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontWeight:700,color:C.gD}},r.s.nome),
+              e("div",{style:{fontSize:9,color:C.mu}},r.nota)
+            ),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd,whiteSpace:"nowrap"}},"\u2212"+fm(r.v)),
+            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(r.saldo))
+          );
+        }),
+        e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"SPESE VARIABILI"),
+        e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+          e("span",{style:{fontSize:14}},"\u{1F6D2}"),
+          e("span",{style:{flex:1,minWidth:0}},
+            e("div",{style:{fontWeight:700,color:C.gD}},nVarReali+(nVarReali===1?" spesa registrata":" spese registrate")),
+            e("div",{style:{fontSize:9,color:C.mu}},"gli acconti sulle fisse sono gi\u00e0 conteggiati sopra")
+          ),
+          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd,whiteSpace:"nowrap"}},"\u2212"+fm(usciteVarReali)),
+          e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(contoIni-usciteFisseReali-usciteVarReali))
+        ),
+        Math.abs(contoExtra)>0.004?e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+          e("span",{style:{fontSize:14}},"\u{1F504}"),
+          e("span",{style:{flex:1,minWidth:0}},e("div",{style:{fontWeight:700,color:C.gD}},"Movimenti fuori app")),
+          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:contoExtra>=0?C.gn:C.rd,whiteSpace:"nowrap"}},(contoExtra>=0?"+":"\u2212")+fm(Math.abs(contoExtra))),
+          e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(saldoAtteso))
+        ):null,
+        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bL,borderRadius:8,padding:"9px 10px",marginTop:8}},
+          e("span",{style:{fontSize:12,fontWeight:900,color:C.gD}},"= Dovrebbe esserci"),
+          e("span",{style:{fontSize:16,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(saldoAtteso))
+        ),
+        contoOggi>0?e("div",null,
+          e("div",{style:{display:"flex",justifyContent:"space-between",padding:"6px 10px",fontSize:12}},
+            e("span",{style:{fontWeight:700,color:C.mu}},"Letto in banca"),
+            e("span",{style:{fontWeight:800,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoOggi))
+          ),
+          e("div",{style:{display:"flex",justifyContent:"space-between",padding:"6px 10px",fontSize:13,borderTop:"1px solid "+C.ln}},
+            e("span",{style:{fontWeight:900,color:Math.abs(deltaConto)<=2?C.gn:C.rd}},"Differenza"),
+            e("span",{style:{fontWeight:900,fontFamily:"monospace",color:Math.abs(deltaConto)<=2?C.gn:C.rd}},(deltaConto>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(deltaConto)))
           )
-        )
-      ),
-      // La seconda natura: risparmio che resta sul conto
-      risparmioSulConto>0.004?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F512} Resta sul conto, ma \u00e8 gi\u00e0 risparmio",H("contoRisparmio")),
-        e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},"non se ne andranno, ma non sono da spendere"),
-        e("div",{style:{fontSize:12,fontFamily:"monospace",lineHeight:1.9,color:C.gD}},
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u{1F416} Salvadanaio tassa"),e("span",null,"\u20AC"+fm(salvRisp))),
-          quotaLibera<salvRisp-0.004?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:10,color:C.mu}},e("span",null,"\u21B3 di cui prenotati da obiettivi e fondi"),e("span",null,"\u20AC"+fm(salvRisp-quotaLibera))):null,
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u{1F4CC} Salvadanaio spese fisse"),e("span",null,"\u20AC"+fm(savFisseTot))),
-          e("div",{style:{display:"flex",justifyContent:"space-between",borderTop:"1.5px solid "+C.ln,marginTop:4,paddingTop:4,fontWeight:900,color:C.gd}},e("span",null,"Totale intoccabile"),e("span",null,"\u20AC"+fm(risparmioSulConto)))
-        )
+        ):null,
+        e("div",{style:{fontSize:10,color:C.mu,marginTop:8,fontStyle:"italic",lineHeight:1.5}},"Qui compaiono solo i soldi gi\u00e0 usciti davvero. Le fisse non ancora addebitate e i salvadanai sono pi\u00f9 sotto: quelli sono ancora sul conto."),
+        e("button",{onClick:function(){setShowPag(true);},style:{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"1.5px solid "+C.nv,background:"#fff",color:C.nv,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u{1F4B3} Segna cosa hai gi\u00e0 pagato")
       ):null,
-      // Veramente libero
-      contoOggi>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+(liberoVero>=0?C.gn:C.rd)}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:6}},"\u{1F4B5} Veramente libero",H("contoLibero")),
-        e("div",{style:{fontSize:28,fontWeight:900,color:liberoVero>=0?C.gn:C.rd,textAlign:"center"}},"\u20AC"+fm(liberoVero)),
-        e("div",{style:{fontSize:11,color:C.mu,textAlign:"center",marginTop:2,marginBottom:8}},"quello che sul conto \u00e8 davvero tuo"),
-        e("div",{style:{fontSize:11,fontFamily:"monospace",color:C.mu,lineHeight:1.8}},
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"Saldo in banca"),e("span",null,"\u20AC"+fm(contoOggi))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u2212 uscir\u00e0 per le fisse"),e("span",null,"\u20AC"+fm(usciraTot))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u2212 salvadanaio tassa"),e("span",null,"\u20AC"+fm(salvRisp))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u2212 salvadanaio fisse"),e("span",null,"\u20AC"+fm(savFisseTot)))
+      // ===== DAL SALDO LETTO: cosa deve ancora uscire e cosa e' gia' risparmio =====
+      contoOggi>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F50D} Quanto \u00e8 davvero tuo",H("contoLibero")),
+        e("div",{style:{fontSize:11,color:C.mu,marginBottom:10}},"dai soldi che leggi in banca, tolgo quelli che hanno gi\u00e0 un destino"),
+        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bL,borderRadius:8,padding:"8px 10px",marginBottom:6}},
+          e("span",{style:{fontSize:12,fontWeight:800,color:C.gD}},"Saldo letto in banca"),
+          e("span",{style:{fontSize:15,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoOggi))
+        ),
+        prenotatoLista.length>0?e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"ANCORA DA PAGARE"):null,
+        prenotatoLista.map(function(x,k){
+          var saldoP=contoOggi-prenotatoLista.slice(0,k+1).reduce(function(a,y){return a+y.v;},0);
+          return e("div",{key:x.s.id,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:14}},x.s.icon),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontWeight:700,color:C.gD}},x.s.nome),
+              e("div",{style:{fontSize:9,color:scadutaNonSegnata(x.s)?C.rd:C.mu}},x.s.gg?((scadutaNonSegnata(x.s)?"\u23F0 doveva uscire il ":"esce intorno al ")+lblAddebito(x.s)):(x.s.blind?"blindata, non ancora uscita":"manca questo al previsto"))
+            ),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.aD,whiteSpace:"nowrap"}},"\u2212"+fm(x.v)),
+            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(saldoP))
+          );
+        }),
+        risparmioSulConto>0.004?e("div",null,
+          e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"RISPARMI DA NON TOCCARE",H("contoRisparmio")),
+          e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:14}},"\u{1F416}"),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontWeight:700,color:C.gD}},"Salvadanaio tassa"),
+              e("div",{style:{fontSize:9,color:C.mu}},quotaLibera<salvRisp-0.004?("di cui \u20AC"+fm(salvRisp-quotaLibera)+" gi\u00e0 promessi a obiettivi e fondi"):"tutto libero da destinare")
+            ),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd,whiteSpace:"nowrap"}},"\u2212"+fm(salvRisp)),
+            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(contoOggi-usciraTot-salvRisp))
+          ),
+          savFisseTot>0.004?e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:14}},"\u{1F4CC}"),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontWeight:700,color:C.gD}},"Salvadanaio spese fisse"),
+              e("div",{style:{fontSize:9,color:C.mu}},"risparmiato sulle bollette gi\u00e0 confermate")
+            ),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd,whiteSpace:"nowrap"}},"\u2212"+fm(savFisseTot)),
+            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(liberoVero))
+          ):null
+        ):null,
+        e("div",{style:{background:liberoVero>=0?C.gL:C.rL,borderRadius:10,padding:"12px 10px",marginTop:10,textAlign:"center"}},
+          e("div",{style:{fontSize:11,fontWeight:800,color:C.mu}},"VERAMENTE LIBERO"),
+          e("div",{style:{fontSize:26,fontWeight:900,color:liberoVero>=0?C.gn:C.rd}},"\u20AC"+fm(liberoVero)),
+          e("div",{style:{fontSize:10,color:C.mu,marginTop:2}},"\u20AC"+fm(contoOggi)+" \u2212 \u20AC"+fm(usciraTot)+" da pagare \u2212 \u20AC"+fm(risparmioSulConto)+" di salvadanai")
         )
       ):null,
       // Fondo cassa
@@ -2395,6 +2447,45 @@ function App(){
       e("div",{style:{textAlign:"center",fontSize:10,color:C.mu,marginBottom:12}},"Budget Famiglia v17 \u00b7 riconciliazione e previsione conto \u00b7 fondo cassa proiettato \u00b7 rettifica scarti \u00b7 aiuti (i) \u00b7 spese retrodatate \u00b7 backup")
     ):null,
     // ===== v16: FINESTRA INTERNA (funziona anche dove i popup di sistema sono bloccati) =====
+    showPag?e("div",{onClick:function(){setShowPag(false);},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:900}},
+      e("div",{onClick:function(ev){ev.stopPropagation();},style:{background:"#fff",borderRadius:"18px 18px 0 0",padding:"18px 16px 24px",width:"100%",maxWidth:520,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 -6px 30px rgba(0,0,0,.3)"}},
+        e("div",{style:{display:"flex",alignItems:"center",marginBottom:4}},
+          e("div",{style:{fontSize:16,fontWeight:900,color:C.gD,flex:1}},"\u{1F4B3} Gi\u00e0 pagate o da pagare"),
+          e("button",{onClick:function(){setShowPag(false);},style:{background:"none",border:"none",fontSize:22,cursor:"pointer",color:C.mu,lineHeight:1}},"\u00d7")
+        ),
+        e("div",{style:{fontSize:11,color:C.mu,marginBottom:12,lineHeight:1.5}},"Segna qui cosa \u00e8 gi\u00e0 passato in banca: l'estratto conto dell'app si aggiorna subito."),
+        e("div",{style:{display:"flex",gap:8,marginBottom:12}},
+          e("div",{style:{flex:1,background:C.rL,borderRadius:10,padding:"8px 10px",textAlign:"center"}},
+            e("div",{style:{fontSize:10,color:C.mu,fontWeight:700}},"gi\u00e0 uscite"),
+            e("div",{style:{fontSize:16,fontWeight:900,color:C.rd,fontFamily:"monospace"}},"\u20AC"+fm(usciteFisseReali))),
+          e("div",{style:{flex:1,background:C.aL,borderRadius:10,padding:"8px 10px",textAlign:"center"}},
+            e("div",{style:{fontSize:10,color:C.mu,fontWeight:700}},"ancora da pagare"),
+            e("div",{style:{fontSize:16,fontWeight:900,color:C.aD,fontFamily:"monospace"}},"\u20AC"+fm(usciraTot)))
+        ),
+        sf.map(function(s){
+          var acc=accOf(s),conf=s.confVal!=null;
+          var pagata=s.blind?!!s.pagato:conf;
+          return e("div",{key:s.id,style:{display:"flex",alignItems:"center",gap:8,padding:"9px 0",borderBottom:"1px solid "+C.ln}},
+            e("span",{style:{fontSize:19}},s.icon),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontSize:13,fontWeight:700,color:C.gD}},s.nome,s.gg?e("span",{style:{fontSize:9,color:C.mu,marginLeft:5}},"\u{1F4C5} "+lblAddebito(s)):null),
+              e("div",{style:{fontSize:10,color:pagata?C.gn:C.mu}},
+                s.blind?(pagata?("\u2713 uscita: \u20AC"+fm(s.prev)):("da pagare: \u20AC"+fm(s.prev))):
+                  (conf?("\u2713 confermata a \u20AC"+fm(s.confVal)):(acc>0.004?("acconti \u20AC"+fm(acc)+" su \u20AC"+f0(s.prev)):("previsti \u20AC"+f0(s.prev)))))
+            ),
+            s.blind?e("button",{onClick:function(){setSf(function(prev){return prev.map(function(y){return y.id===s.id?Object.assign({},y,{pagato:!y.pagato,pagatoTs:!y.pagato?Date.now():null}):y;});});},
+              style:{background:pagata?C.gL:"#fff",color:pagata?C.gn:C.mu,border:"1.5px solid "+(pagata?C.gn:C.ln),borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},pagata?"\u2713 Pagata":"\u25CB Da pagare"):
+              (conf?e("button",{onClick:function(){annullaConferma(s);},style:{background:C.gL,color:C.gn,border:"1.5px solid "+C.gn,borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},"\u2713 Riapri"):
+                e("button",{onClick:function(){
+                  setModal({em:"\u2705",tit:"Segnare "+s.nome+" come pagata?",
+                    msg:"La chiudo a \u20AC"+f0(s.prev)+", cio\u00e8 il previsto"+(acc>0.004?" (gli acconti da \u20AC"+fm(acc)+" sono gi\u00e0 dentro questa cifra)":"")+". Se l'importo vero \u00e8 diverso, confermala dalla scheda Fisse scrivendo la cifra esatta: se hai speso meno, la differenza va nel salvadanaio.",
+                    buttons:[{lbl:"\u2705 S\u00ec, al previsto",fn:function(){confermaFissa(s,s.prev);}},{lbl:"Annulla"}]});
+                },style:{background:"#fff",color:C.mu,border:"1.5px solid "+C.ln,borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},"\u25CB Da pagare"))
+          );
+        }),
+        e("button",{onClick:function(){setShowPag(false);},style:{width:"100%",marginTop:14,padding:12,borderRadius:10,border:"none",background:C.gn,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"Fatto")
+      )
+    ):null,
     modal?e("div",{style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}},
       e("div",{style:{background:"#fff",borderRadius:18,padding:"22px 18px",maxWidth:340,width:"100%",textAlign:"center",boxShadow:"0 10px 40px rgba(0,0,0,.3)"}},
         modal.em?e("div",{style:{fontSize:44,lineHeight:1.1,marginBottom:6}},modal.em):null,
