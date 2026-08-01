@@ -370,7 +370,7 @@ var HELP={
   salvadanaio:{em:"\u{1F4B0}",tit:"Ho risparmiato",msg:"Qui dentro ci sono solo soldi VERI gi\u00e0 messi da parte: le tasse serali rispettate, gli arrotondamenti, i versamenti. La quota \u201clibera\u201d \u00e8 quella non ancora prenotata da obiettivi o fondi. Rompere il salvadanaio preleva senza toccare il budget del giorno. Esempio: \u20AC57 totali, di cui \u20AC30 prenotati per le cuffie \u2192 \u20AC27 liberi."},
   barometro:{em:"\u2696\uFE0F",tit:"Barometro 50/30/20",msg:"La regola dei conti sani: circa met\u00e0 stipendio per le necessit\u00e0, un terzo per i desideri, un quinto per il risparmio. Il barometro confronta le tue uscite reali con questi riferimenti; non \u00e8 un voto, \u00e8 una bussola. Esempio: su \u20AC1.850 \u2192 \u20AC925 necessit\u00e0, \u20AC555 desideri, \u20AC370 risparmio."},
   sett7:{em:"\u{1F4CA}",tit:"Ultimi 7 giorni",msg:"La media di spesa dell'ultima settimana confrontata col budget giornaliero: se la media \u00e8 sotto, sei in rotta giusta. Sotto trovi le tre categorie che hanno pesato di pi\u00f9. Esempio: spesi \u20AC210 in 7 giorni \u2192 media \u20AC30 al giorno contro un budget di \u20AC38: bene."},
-  fisse:{em:"\u{1F4CC}",tit:"Le spese fisse e la regola d'oro",msg:"Ogni voce fissa pesa sul budget SEMPRE almeno il previsto: se spendi meno, il budget non sale e la differenza va nel salvadanaio fisse; se sfori, lo sforo scende subito dal budget dei giorni rimasti. Le voci blindate (\u{1F512}) valgono sempre esattamente il previsto. Con \u270F\uFE0F Modifica puoi anche dire in che giorno del mese esce l'addebito (utile per abbonamenti e rate): \u00e8 facoltativo, serve a ordinare le uscite future e ad avvisarti se una scadenza \u00e8 passata senza che tu l'abbia segnata. Esempio: Luce prevista \u20AC30, bolletta \u20AC22 \u2192 \u20AC8 nel salvadanaio, budget intatto."},
+  fisse:{em:"\u{1F4CC}",tit:"Le spese fisse e la regola d'oro",msg:"Ogni voce fissa pesa sul budget SEMPRE almeno il previsto: se spendi meno, il budget non sale e la differenza va nel salvadanaio fisse; se sfori, lo sforo scende subito dal budget dei giorni rimasti. Le voci blindate (\u{1F512}) valgono sempre esattamente il previsto. Con \u270F\uFE0F Modifica puoi anche dire in che giorno del mese esce l'addebito (utile per abbonamenti e rate): \u00e8 facoltativo, ma con la data l'app la segna uscita DA SOLA quando il giorno arriva: tu tocchi solo se la banca ritarda l'addebito. Esempio: Luce prevista \u20AC30, bolletta \u20AC22 \u2192 \u20AC8 nel salvadanaio, budget intatto."},
   salvFisse:{em:"\u{1F416}",tit:"Salvadanaio spese fisse",msg:"Qui si accumulano le differenze delle voci confermate SOTTO il previsto. \u00c8 separato dal salvadanaio della tassa: questo nasce dalle bollette andate bene, quello dalla disciplina quotidiana. A fine mese decidi come dividerlo tra risparmi e svago. Esempio: Luce \u20AC8 + Gas \u20AC5 risparmiati \u2192 \u20AC13 nel salvadanaio fisse."},
   spese:{em:"\u{1F4B8}",tit:"Registrare le spese",msg:"\u{1F4CC} Fissa = un acconto su una voce fissa (benzina, spesa vestiti). \u{1F4B8} Extra = spesa variabile con categoria. Il campo \u{1F4C5} Giorno normalmente resta su oggi: se ti sei dimenticato uno scontrino, mettici la data vera e lo scoperto di quel giorno si spalma sui giorni che restano invece di distruggere la giornata di oggi. Esempio: \u20AC35 dimenticati ieri, con 15 giorni davanti \u2192 il budget cala di poco pi\u00f9 di \u20AC2 al giorno invece di mangiarsi tutti i \u20AC33 di oggi."},
   monitor:{em:"\u{1F4CA}",tit:"Dove vanno i soldi",msg:"La classifica delle uscite del ciclo, per capire a colpo d'occhio cosa pesa. Con \u2699\uFE0F scegli tu quali voci monitorare (solo variabili, oppure anche le fisse); la percentuale si pu\u00f2 calcolare sul totale speso o sullo stipendio. Esempio: Alimentari \u20AC240 = 35% del totale speso."},
@@ -378,10 +378,11 @@ var HELP={
   arrotonda:{em:"\u{1FA99}",tit:"Arrotondamento delle spese",msg:"Ogni spesa extra viene arrotondata all'euro (o ai 5 euro) e la differenza scivola nel salvadanaio: un micro-risparmio invisibile che a fine mese si sente. Vale solo per le spese di oggi, non per quelle retrodatate. Esempio: caff\u00e8 \u20AC1,20 arrotondato a \u20AC2 \u2192 \u20AC0,80 nel salvadanaio."},
   contoPartenza:{em:"\u{1F3E6}",tit:"Il saldo di partenza",msg:"Scrivi quanto c'era sul conto il giorno dello stipendio (stipendio compreso). Se lo scrivi in ritardo nessun problema: digita il saldo che vedi ADESSO e l'app ricostruisce da sola la partenza aggiungendo le uscite gi\u00e0 registrate nei giorni passati. Esempio: oggi vedi \u20AC1.900, uscite gi\u00e0 registrate \u20AC200 \u2192 partenza ricostruita \u20AC2.100."},
   contoVerdetto:{em:"\u{1F9FE}",tit:"Il verdetto del conto",msg:"L'app calcola quanto DOVREBBE esserci sul conto (partenza \u2212 fisse realmente uscite \u2212 spese variabili + movimenti fuori app) e lo confronta col saldo che leggi in banca. Uno scarto entro \u20AC2 \u00e8 fisiologico; se mancano soldi c'\u00e8 un'uscita non registrata, se ce ne sono di pi\u00f9 c'\u00e8 un'entrata non segnata. La tassa e i salvadanai NON si sottraggono: quei soldi sono ancora sul conto, solo prenotati. Esempio: atteso \u20AC1.310, letto \u20AC1.295 \u2192 mancano \u20AC15 all'appello."},
-  contoPrenotato:{em:"\u{1F53B}",tit:"Uscir\u00e0 dal conto",msg:"Soldi che vedi in banca ma se ne andranno: le voci blindate non ancora addebitate (affitto, rate) e quello che manca alle voci in corso per arrivare al previsto. Quando una blindata esce davvero, toccala con \u2713 e sparisce da qui. Esempio: affitto \u20AC450 non ancora addebitato + \u20AC110 mancanti al carburante = \u20AC560 che se ne andranno."},
+  contoPrenotato:{em:"\u{1F53B}",tit:"Uscir\u00e0 dal conto",msg:"Soldi che vedi in banca ma se ne andranno: le voci blindate non ancora addebitate (affitto, rate) e quello che manca alle voci in corso per arrivare al previsto. Le voci con la data di addebito spariscono da sole quando il giorno passa; quelle senza data le spunti tu con \u2713. Esempio: affitto \u20AC450 non ancora addebitato + \u20AC110 mancanti al carburante = \u20AC560 che se ne andranno."},
   contoRisparmio:{em:"\u{1F512}",tit:"Resta, ma \u00e8 gi\u00e0 risparmio",msg:"Questi soldi NON usciranno dal conto, per\u00f2 non sono spendibili: sono le tasse serali gi\u00e0 messe da parte, gli arrotondamenti e i risparmi sulle bollette. Restano in banca a fare da materasso. \u00c8 la differenza fondamentale con la voce sopra: quella se ne va, questa resta ma non si tocca. Esempio: \u20AC174 di salvadanaio tassa + \u20AC13 di salvadanaio fisse = \u20AC187 intoccabili."},
   contoPrevisione:{em:"\u{1F52E}",tit:"Previsione dell'estratto conto",msg:"Ogni volta che leggi il saldo in banca puoi registrarlo come punto di controllo. Da l\u00ec in poi l'app somma le uscite registrate e ti dice quanto dovresti leggere oggi: se il numero vero \u00e8 pi\u00f9 basso, la spesa mancante \u00e8 avvenuta in quei pochi giorni e la ritrovi facilmente. Esempio: luned\u00ec \u20AC3.100, da allora \u20AC260 di uscite \u2192 oggi dovresti leggere \u20AC2.840."},
   contoRettifica:{em:"\u2696\uFE0F",tit:"Rettificare uno scarto",msg:"Quando i conti non tornano hai due strade con effetti opposti. SPESA VERA: i soldi mancanti entrano tra le spese e il budget giornaliero scende \u2014 giusto quando hai dimenticato uno scontrino. MOVIMENTO FUORI APP: il conto quadra ma il budget non cambia \u2014 giusto per giroconti, prestiti o soldi spostati su un altro conto. Esempio: mancano \u20AC140 di spesa dimenticata \u2192 scegli spesa vera e il budget scende di circa \u20AC9 al giorno su 15 giorni."},
+  annuali:{em:"\u{1F5D3}\uFE0F",tit:"Annuali e semestrali",msg:"Spese che arrivano una volta ogni tanto ma vanno preparate ogni mese. Con la scadenza: l'app divide il residuo per i mesi che mancano \u2014 se un mese non riesci ad accantonare, la quota si ridistribuisce da sola su quelli che restano, e arrivi puntuale comunque. Senza scadenza (fondo continuo, es. usura auto): accumuli una quota fissa e prelevi quando serve. I soldi accantonati restano sul conto ma NON sono tuoi: la scheda Conto li tiene separati. Esempio: assicurazione \u20AC350 a gennaio, da luglio sono \u20AC58,33 al mese; se luglio va male, da agosto diventano \u20AC70."},
   fcCrescita:{em:"\u{1F4C8}",tit:"Come cresce il fondo cassa",msg:"Il materasso si consolida al prossimo accredito: quello che avanza sul conto quel giorno diventa il nuovo fondo cassa. Cresce in due modi: con la tassa di risparmio messa via sera dopo sera, E con la parte di stipendio che semplicemente non spendi. L'app proietta il valore finale al ritmo di spesa che stai tenendo. Esempio: fondo cassa \u20AC2.000, ritmo attuale \u20AC10 al giorno \u2192 al prossimo accredito \u20AC2.130, di cui \u20AC39 di tassa e \u20AC91 di stipendio avanzato."},
   contoLibero:{em:"\u{1F4B5}",tit:"Veramente libero",msg:"Il saldo in banca dice una bugia: dentro ci sono i soldi che devono ancora uscire E quelli gi\u00e0 diventati risparmio. Qui vedi quanto \u00e8 davvero tuo da spendere: saldo letto \u2212 quello che uscir\u00e0 \u2212 i salvadanai. Esempio: \u20AC2.840 in banca \u2212 \u20AC560 che usciranno \u2212 \u20AC187 di salvadanai = \u20AC2.093 veri."},
   fondoCassa:{em:"\u{1F3DB}\uFE0F",tit:"Fondo cassa",msg:"\u00c8 il materasso: quello che c'era sul conto PRIMA che arrivasse lo stipendio (partenza \u2212 stipendio). Non si tocca durante il ciclo: si aggiorna al prossimo accredito, quando quello che \u00e8 avanzato diventa il nuovo materasso. Esempio: partenza \u20AC3.850 \u2212 stipendio \u20AC1.850 = fondo cassa \u20AC2.000."},
@@ -496,6 +497,13 @@ function App(){
   var _msg=us(""),msg=_msg[0],setMsg=_msg[1];
   var _nb=us(""),newBin=_nb[0],setNewBin=_nb[1];
   var _sp=us(false),showPag=_sp[0],setShowPag=_sp[1]; // finestra "gia' pagata / da pagare"
+  var _sr=us(false),showRacc=_sr[0],setShowRacc=_sr[1]; // finestra "il racconto dei tuoi soldi"
+  // Spese ANNUALI o semestrali: {id,nome,icon,imp,scad(ts|null),quotaMan,ric(mesi rinnovo),acc,ts}
+  var _ann=us([]),annuali=_ann[0],setAnnuali=_ann[1];
+  var _annP=us(null),annPay=_annP[0],setAnnPay=_annP[1];   // {id,imp} pagamento in corso
+  var _annF=us(false),annForm=_annF[0],setAnnForm=_annF[1]; // form nuova voce annuale aperto
+  var _sd=us(false),showDett=_sd[0],setShowDett=_sd[1];   // dettaglio: estratto conto riga per riga
+  var _sc2=us(false),showCfg=_sc2[0],setShowCfg=_sc2[1];  // dettaglio: partenza, letture, storico
   var spVRef=React.useRef(spV);
   ue(function(){spVRef.current=spV;},[spV]);
   var cfgModRef=React.useRef(0);
@@ -610,7 +618,7 @@ function App(){
     var chiudi=function(usaAccumulato){
       var tot=0,note=[];
       var nuove=sf.map(function(s){
-        if(s.blind)return Object.assign({},s,{pagato:false});
+        if(s.blind)return Object.assign({},s,{pagato:false,pagOvr:null});
         var add=0;
         if(s.confVal==null && usaAccumulato){
           var a=accOf(s);
@@ -653,6 +661,7 @@ function App(){
       if(d.contoIni!==undefined)setContoIni(d.contoIni);if(d.contoIniRaw!==undefined)setContoIniRaw(d.contoIniRaw);if(d.contoIniData!==undefined)setContoIniData(d.contoIniData);if(d.contoIniCiclo!==undefined)setContoIniCiclo(d.contoIniCiclo);
       if(d.contoOggi!==undefined)setContoOggi(d.contoOggi);if(d.contoOggiData!==undefined)setContoOggiData(d.contoOggiData);if(d.contoExtra!==undefined)setContoExtra(d.contoExtra);if(d.contoStorico)setContoStorico(d.contoStorico);
       if(d.contoIniModo)setContoIniModo(d.contoIniModo);if(d.contoLetture)setContoLetture(d.contoLetture);if(d.fcTargetOn!==undefined)setFcTargetOn(d.fcTargetOn);if(d.fcTarget!==undefined)setFcTarget(d.fcTarget);
+      if(d.annuali)setAnnuali(d.annuali);
     }
     // Import automatico da link WhatsApp
     var hash=window.location.hash;
@@ -678,12 +687,12 @@ function App(){
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget});},[stip,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,goals,evitati,roundTot,roundUp,streak,bestStreak,catsX,monSel,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,ok]);
+  ue(function(){if(ok)saveLS({stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali});},[stip,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,goals,evitati,roundTot,roundUp,streak,bestStreak,catsX,monSel,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,ok]);
   // Orologio impostazioni: avanza solo per modifiche fatte QUI (non quando applico il remoto)
   ue(function(){
     if(!ok)return;if(applyRef.current)return;
     setCfgMod(function(){return Math.max(Date.now(),cfgModRef.current+1);});
-  },[stip,gPaga,sf,pctR,tassa,roundUp,catsX,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget]);
+  },[stip,gPaga,sf,pctR,tassa,roundUp,catsX,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali]);
   // Orologio salvadanaio: avanza per chiusure/modifiche locali
   ue(function(){
     if(!ok)return;if(applyRef.current)return;
@@ -693,13 +702,13 @@ function App(){
   ue(function(){
     if(!ok||!jbReady)return;
     var t=setTimeout(function(){
-      var payload={ver:2,stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget};
+      var payload={ver:2,stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali};
       jbWrite(payload,function(okW){
         if(!okW){setOnline(false);setTimeout(function(){jbWrite(payload);},5000);} // riprova una volta dopo 5s
       });
     },800);
     return function(){clearTimeout(t);};
-  },[stip,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,catsX,goals,evitati,roundTot,roundUp,streak,bestStreak,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,ok,jbReady]);
+  },[stip,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,catsX,goals,evitati,roundTot,roundUp,streak,bestStreak,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,ok,jbReady]);
   // Leggi ONLINE: subito, ogni 8 secondi, e appena l'app torna in primo piano
   ue(function(){
     if(!jbReady)return;
@@ -729,6 +738,7 @@ function App(){
           if(d.contoIni!==undefined)setContoIni(d.contoIni);if(d.contoIniRaw!==undefined)setContoIniRaw(d.contoIniRaw);if(d.contoIniData!==undefined)setContoIniData(d.contoIniData);if(d.contoIniCiclo!==undefined)setContoIniCiclo(d.contoIniCiclo);
           if(d.contoOggi!==undefined)setContoOggi(d.contoOggi);if(d.contoOggiData!==undefined)setContoOggiData(d.contoOggiData);if(d.contoExtra!==undefined)setContoExtra(d.contoExtra);if(d.contoStorico)setContoStorico(d.contoStorico);
           if(d.contoIniModo)setContoIniModo(d.contoIniModo);if(d.contoLetture)setContoLetture(d.contoLetture);if(d.fcTargetOn!==undefined)setFcTargetOn(d.fcTargetOn);if(d.fcTarget!==undefined)setFcTarget(d.fcTarget);
+          if(d.annuali)setAnnuali(d.annuali);
           setCfgMod(rc);
         }
         // SALVADANAIO e contatori: stessa regola
@@ -870,7 +880,22 @@ function App(){
     return val>s.prev?val:s.prev;
   };
   var tFP=sf.reduce(function(a,x){return a+x.prev;},0);
-  var tFE=sf.reduce(function(a,x){return a+amtF(x);},0);
+  var tFEmens=sf.reduce(function(a,x){return a+amtF(x);},0);
+  // ----- ANNUALI: quota del mese ricalcolata sul residuo (si autoaggiusta se un mese salta) -----
+  var mesiRimAnn=function(a,rifTs){
+    if(!a.scad)return 0;
+    var k=0,d=new Date(rifTs);
+    while(d.getTime()<a.scad&&k<60){k++;d.setMonth(d.getMonth()+1);}
+    return Math.max(1,k);
+  };
+  var quotaAnn=function(a,rifTs){
+    if(a.scad)return Math.max(0,(a.imp||0)-(a.acc||0))/mesiRimAnn(a,rifTs);
+    return a.quotaMan||0;
+  };
+  var quoteMeseTot=annuali.reduce(function(t,a){return t+quotaAnn(a,ci.iniTs);},0);
+  var accAnnTot=annuali.reduce(function(t,a){return t+(a.acc||0);},0);
+  // Il totale che pesa sul budget: fisse mensili + quote annuali del mese
+  var tFE=tFEmens+quoteMeseTot;
   // Risparmi sulle fisse gia' confermati in questo ciclo (alimentano il pannello Fondi)
   var tDiff=sf.reduce(function(a,x){return a+(x.savCred||0);},0);
   var fR=tDiff*(pctR/100),fS=tDiff*((100-pctR)/100);
@@ -885,7 +910,7 @@ function App(){
   var ogS=new Date().toLocaleDateString("it-IT");
   // Filtro: la spesa appartiene al CICLO in corso? (data tra inizio e fine ciclo)
   // Spese variabili DEL CICLO (escluse le fisse e i prelievi dal salvadanaio)
-  var spVar=spV.filter(function(s){return !s.fId && !s.fromSalv && inCiclo(s);});
+  var spVar=spV.filter(function(s){return !s.fId && !s.fromSalv && !s.fromAnn && inCiclo(s);});
   var keyD=function(d){var p=(d||"").split("/");return p.length<3?0:new Date(+p[2],+p[1]-1,+p[0]).getTime();};
   var ogTs=keyD(ogS);
   // Spese variabili di OGGI
@@ -949,14 +974,20 @@ function App(){
     var t=tsAddebito(s);if(t==null)return null;
     var d=new Date(t);return d.getDate()+" "+MESI[d.getMonth()].slice(0,3);
   };
-  // Blindata che avrebbe gia' dovuto uscire dal conto ma non e' segnata come uscita
-  var scadutaNonSegnata=function(s){
+  // Un abbonamento/rata con data esce DA SOLO quando la data passa (pagOvr forza a mano nei ritardi banca)
+  var uscitaAbb=function(s){
+    if(!s.blind)return false;
     var t=tsAddebito(s);
-    return t!=null&&t<ogTs&&s.blind&&!s.pagato;
+    if(t==null)return !!s.pagato;                 // senza data: spunta manuale come prima
+    if(s.pagOvr===true)return true;
+    if(s.pagOvr===false)return false;
+    return t<=ogTs;                               // automatico: data arrivata = uscito
   };
+  // Abbonamento uscito in automatico (per etichettarlo in interfaccia)
+  var uscitaAuto=function(s){return s.blind&&s.gg&&s.pagOvr==null&&tsAddebito(s)<=ogTs;};
   // ===== SCHEDA CONTO: riconciliazione con il conto corrente =====
   // Fisse USCITE DAVVERO dal conto: blindate solo se segnate uscite; le altre al confermato o all'accumulato
-  var usciteFisseReali=sf.reduce(function(a,s){return a+(s.blind?(s.pagato?s.prev:0):(s.confVal!=null?s.confVal:accOf(s)));},0);
+  var usciteFisseReali=sf.reduce(function(a,s){return a+(s.blind?(uscitaAbb(s)?s.prev:0):(s.confVal!=null?s.confVal:accOf(s)));},0);
   // Variabili USCITE DAVVERO: tutte le spese non-fisse del ciclo, INCLUSI i prelievi dal salvadanaio (soldi veri usciti)
   var usciteVarReali=spV.filter(function(s){return !s.fId&&inCiclo(s);}).reduce(function(a,x){return a+x.imp;},0);
   var contoAttivo=contoIni>0&&contoIniCiclo===ci.iniTs;
@@ -965,7 +996,7 @@ function App(){
   var deltaConto=contoOggi-saldoAtteso;
   // Ancora prenotato: blindate non uscite al previsto; voci in corso per quello che manca al previsto; confermate = 0
   var prenotatoLista=sf.map(function(s){
-    var v=s.blind?(s.pagato?0:s.prev):(s.confVal!=null?0:Math.max(0,s.prev-accOf(s)));
+    var v=s.blind?(uscitaAbb(s)?0:s.prev):(s.confVal!=null?0:Math.max(0,s.prev-accOf(s)));
     return{s:s,v:v};
   }).filter(function(x){return x.v>0.004;});
   prenotatoLista.sort(function(a,b){
@@ -979,23 +1010,40 @@ function App(){
   // Righe dell'estratto conto: ogni voce fissa gia' uscita, col saldo che scende passo passo
   var _sal=contoIni;
   var righeUscite=sf.map(function(s){
-    var v=s.blind?(s.pagato?s.prev:0):(s.confVal!=null?s.confVal:accOf(s));
-    var nota=s.blind?("uscita dal conto"+(s.gg?" \u00b7 "+lblAddebito(s):"")):(s.confVal!=null?"bolletta confermata":"acconti versati finora");
+    var v=s.blind?(uscitaAbb(s)?s.prev:0):(s.confVal!=null?s.confVal:accOf(s));
+    var nota=s.blind?((uscitaAuto(s)?"uscita da sola il ":"uscita dal conto")+(s.gg?(uscitaAuto(s)?lblAddebito(s):" \u00b7 "+lblAddebito(s)):"")):(s.confVal!=null?"bolletta confermata":"acconti versati finora");
     return{s:s,v:v,nota:nota};
   }).filter(function(x){return x.v>0.004;});
   righeUscite.forEach(function(r){_sal-=r.v;r.saldo=_sal;});
   var nVarReali=spV.filter(function(s){return !s.fId&&inCiclo(s);}).length;
   var savFisseTot=sf.reduce(function(a,x){return a+(x.sav||0);},0);
-  var liberoVero=contoOggi-prenotatoTot-salvRisp-savFisseTot;
+  var liberoVero=contoOggi-prenotatoTot-salvRisp-savFisseTot-accAnnTot;
   var fondoCassa=contoIni-stip;
+  var fcNetto=fondoCassa-accAnnTot; // il materasso VERO: senza i soldi gia' promessi alle annuali
   // --- Le due nature dei soldi ancora "impegnati" sul conto ---
   var usciraTot=prenotatoTot;                          // fisse che DEVONO ancora uscire dal conto
+  var prenotatoOrd=prenotatoLista.slice().sort(function(a,b){
+    var ta=tsAddebito(a.s),tb=tsAddebito(b.s);
+    ta=ta==null?9e15:ta;tb=tb==null?9e15:tb;
+    return ta-tb;
+  });
   var risparmioSulConto=salvRisp+savFisseTot;          // soldi che RESTANO sul conto ma sono gia' risparmio
+  // I salvadanai si accumulano da un ciclo all'altro: quelli maturati PRIMA di questo stipendio
+  // erano gia' sul conto il giorno della paga, quindi sono gia' dentro il fondo cassa.
+  var savFisseCiclo=sf.reduce(function(a,x){return a+(x.savCred||0);},0);
+  var rispCiclo=salvCiclo+savFisseCiclo;                          // messo via con QUESTO stipendio
+  var rispVecchio=Math.max(0,risparmioSulConto-rispCiclo);        // gia' conteggiato nel fondo cassa
+  var stipLibero=liberoVero-fcNetto;                              // quanto resta dello stipendio, senza toccare il materasso vero
   // --- PROIEZIONE al prossimo accredito: il saldo di allora sara' il nuovo fondo cassa ---
   var mediaGG=ci.gP>0?spesoCiclo/ci.gP:0;              // ritmo di spesa variabile tenuto finora
   var spesaFutura=mediaGG*ci.gR;                       // proiezione sui giorni DOPO oggi
   var fcProiettato=contoOggi>0?(contoOggi-usciraTot-spesaFutura):null;
-  var crescitaPrev=(fcProiettato!=null&&contoAttivo)?(fcProiettato-fondoCassa):null;
+  // La crescita VERA del materasso: al lordo tolgo le quote annuali di questo mese,
+  // perche' quei soldi accumulati non sono ricchezza ma spese future gia' promesse.
+  var quoteCoperte=Math.min(quoteMeseTot,Math.max(0,(fcProiettato!=null?fcProiettato-fondoCassa:0)));
+  var crescitaLorda=(fcProiettato!=null&&contoAttivo)?(fcProiettato-fondoCassa):null;
+  var crescitaPrev=(crescitaLorda!=null)?(crescitaLorda-quoteMeseTot):null;
+  var fcNettoProi=(fcProiettato!=null)?(fcProiettato-accAnnTot-quoteMeseTot):null;
   var crescitaAvanzo=(crescitaPrev!=null)?(crescitaPrev-salvCiclo):null; // parte NON dovuta alla tassa gia' messa via
   var fcTargetOk=(fcTargetOn&&fcTarget>0&&crescitaPrev!=null)?(crescitaPrev>=fcTarget-0.004):false;
   var fcMancaGG=(fcTargetOn&&fcTarget>0&&crescitaPrev!=null&&ci.gR>0)?Math.max(0,(fcTarget-crescitaPrev)/ci.gR):0;
@@ -1008,7 +1056,11 @@ function App(){
     // spese datate DOPO il giorno della lettura (variabili, prelievi e acconti sulle fisse)
     usciteDaLett=spV.filter(function(s){return inCiclo(s)&&keyD(s.data)>sogliaL;}).reduce(function(a,x){return a+x.imp;},0)
       +sf.reduce(function(a,s){
-          if(s.blind)return a+((s.pagato&&(s.pagatoTs||0)>sogliaL)?s.prev:0);
+          if(s.blind){
+            var t=tsAddebito(s);
+            if(t!=null)return a+((uscitaAbb(s)&&t>sogliaL)?s.prev:0);
+            return a+((s.pagato&&(s.pagatoTs||0)>sogliaL)?s.prev:0);
+          }
           return a+((s.confVal!=null&&(s.confTs||0)>sogliaL)?Math.max(0,s.confVal-accOf(s)):0);
         },0);
   }
@@ -1054,6 +1106,27 @@ function App(){
   var fcTrend=(contoAttivo&&fcPrec)?(fondoCassa-fcPrec.f):null;
   // Imposta il saldo di partenza; se digitato in ritardo ricostruisce aggiungendo le uscite dei giorni PASSATI
   // (le spese di OGGI sono escluse di proposito: si assume il saldo letto a inizio giornata)
+  // Pagare un'annuale alla scadenza (o usare un fondo continuo): esce dal conto, non tocca il budget
+  var pagaAnnuale=function(a,impVero){
+    var v=impVero||0;
+    if(v<=0){setModal({em:"\u270F\uFE0F",tit:"Manca l'importo",msg:"Scrivi quanto hai pagato davvero.",buttons:[{lbl:"OK"}]});return;}
+    setSpV(function(prev){return prev.concat([{id:mkId(),imp:v,desc:(a.scad?"Pagata: ":"Dal fondo: ")+a.nome,data:ogS,tipo:"extra",fId:null,cat:"Annuali",lbl:a.icon+" "+a.nome,chi:user,fromAnn:true}]);});
+    if(a.scad){
+      if(a.ric>0){
+        var ns=new Date(a.scad);ns.setMonth(ns.getMonth()+a.ric);
+        setAnnuali(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,{acc:0,scad:ns.getTime()}):x;});});
+        setModal({em:"\u2705",tit:a.nome+" pagata!",msg:"\u20AC"+fm(v)+" usciti dal conto, pagati con l'accantonato (\u20AC"+fm(a.acc||0)+"). La voce si rinnova: prossima scadenza "+new Date(ns).toLocaleDateString("it-IT")+", l'accumulo riparte da zero.",buttons:[{lbl:"\u{1F44D} Perfetto"}]});
+      }else{
+        setAnnuali(function(prev){return prev.filter(function(x){return x.id!==a.id;});});
+        setModal({em:"\u2705",tit:a.nome+" pagata!",msg:"\u20AC"+fm(v)+" usciti dal conto. Era una tantum: la voce \u00e8 chiusa e la sua quota non pesa pi\u00f9 sul budget.",buttons:[{lbl:"\u{1F44D} Perfetto"}]});
+      }
+    }else{
+      var nuovoAcc=Math.max(0,(a.acc||0)-v);
+      setAnnuali(function(prev){return prev.map(function(x){return x.id===a.id?Object.assign({},x,{acc:nuovoAcc}):x;});});
+      setModal({em:"\u{1F527}",tit:"Preso dal fondo "+a.nome,msg:"\u20AC"+fm(v)+" usciti dal conto usando il fondo, che scende a \u20AC"+fm(nuovoAcc)+". Il budget di oggi non si tocca: erano soldi gi\u00e0 accantonati.",buttons:[{lbl:"\u{1F44D} Ok"}]});
+    }
+    setAnnPay(null);
+  };
   var setContoPartenza=function(vRaw,modo){
     var v=vRaw||0;
     var md=modo||contoIniModo;
@@ -1061,7 +1134,7 @@ function App(){
     // modo "paga": il numero E' gia' il saldo del giorno dello stipendio, nessuna ricostruzione
     // modo "oggi": il numero e' il saldo di adesso, quindi ci risommo le uscite gia' registrate nei giorni passati
     var addBack=md==="paga"?0:(spV.filter(function(s){return inCiclo(s)&&keyD(s.data)<ogTs;}).reduce(function(a,x){return a+x.imp;},0)
-      +sf.reduce(function(a,s){return a+((s.blind&&s.pagato)?s.prev:0);},0));
+      +sf.reduce(function(a,s){return a+((s.blind&&uscitaAbb(s))?s.prev:0);},0));
     var ini=v+addBack;
     setContoIni(ini);setContoIniRaw(v);setContoIniData(ogS);setContoIniCiclo(ci.iniTs);
     setContoStorico(function(prev){
@@ -1151,7 +1224,38 @@ function App(){
   // Azzeramento risparmi-del-ciclo quando inizia un nuovo ciclo (paga)
   ue(function(){
     if(!ok)return;
-    if(salvCicloIni!==ci.iniTs){setSalvCiclo(0);setSalvGiorni(0);setPersiGiorni(0);setSalvCicloIni(ci.iniTs);}
+    if(salvCicloIni!==ci.iniTs){
+      // Prima di azzerare: consolido le quote annuali del ciclo appena finito.
+      // Se il mese ha sforato, la parte non coperta NON si accantona e si ripartisce sui mesi che restano.
+      if(salvCicloIni>0&&annuali.length>0){
+        var pIni=salvCicloIni,pFin=ci.iniTs;
+        var spesoP=spV.filter(function(s){if(s.fId||s.fromSalv||s.fromAnn)return false;var k=keyD(s.data);return k>=pIni&&k<pFin;}).reduce(function(a,x){return a+x.imp;},0);
+        var quoteP=annuali.map(function(a){return quotaAnn(a,pIni);});
+        var quoteTotP=quoteP.reduce(function(a,b){return a+b;},0);
+        var dispoP=stip-tFEmens-quoteTotP;
+        var sforo=Math.max(0,spesoP+salvCiclo-dispoP);
+        var persoTot=Math.min(sforo,quoteTotP);
+        setAnnuali(function(prev){
+          return prev.map(function(a,i){
+            var q=quoteP[i];if(q<=0.004)return a;
+            var taglio=quoteTotP>0?persoTot*q/quoteTotP:0;
+            var agg=Math.max(0,q-taglio);
+            var nuovo=(a.acc||0)+agg;
+            if(a.scad)nuovo=Math.min(a.imp||0,nuovo);
+            return Object.assign({},a,{acc:Math.round(nuovo*100)/100});
+          });
+        });
+        if(persoTot>0.004){
+          var perso=persoTot;
+          setTimeout(function(){
+            setModal({em:"\u{1F4C5}",tit:"Quote annuali: mese in salita",
+              msg:"Il mese scorso hai sforato il disponibile di \u20AC"+fm(sforo)+": delle quote per le spese annuali (\u20AC"+fm(quoteTotP)+") ne ho potute mettere da parte solo \u20AC"+fm(Math.max(0,quoteTotP-perso))+". I \u20AC"+fm(perso)+" mancanti si ripartiscono sui mesi che restano, quindi le quote salgono un po'.",
+              buttons:[{lbl:"\u{1F44D} Ho capito"}]});
+          },1800);
+        }
+      }
+      setSalvCiclo(0);setSalvGiorni(0);setPersiGiorni(0);setSalvCicloIni(ci.iniTs);
+    }
   },[ok,ci.iniTs]);
   // ===== CHIUSURA GIORNALIERA AUTOMATICA (a mezzanotte / al primo avvio del giorno nuovo) =====
   ue(function(){
@@ -1254,7 +1358,7 @@ function App(){
 
   // ===== v16: BACKUP / RIPRISTINO =====
   var scaricaBackup=function(){
-    var d={ver:2,exported:new Date().toISOString(),stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget};
+    var d={ver:2,exported:new Date().toISOString(),stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali};
     var blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
     var a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
@@ -1281,6 +1385,7 @@ function App(){
           if(d.contoIni!==undefined)setContoIni(d.contoIni);if(d.contoIniRaw!==undefined)setContoIniRaw(d.contoIniRaw);if(d.contoIniData!==undefined)setContoIniData(d.contoIniData);if(d.contoIniCiclo!==undefined)setContoIniCiclo(d.contoIniCiclo);
           if(d.contoOggi!==undefined)setContoOggi(d.contoOggi);if(d.contoOggiData!==undefined)setContoOggiData(d.contoOggiData);if(d.contoExtra!==undefined)setContoExtra(d.contoExtra);if(d.contoStorico)setContoStorico(d.contoStorico);
           if(d.contoIniModo)setContoIniModo(d.contoIniModo);if(d.contoLetture)setContoLetture(d.contoLetture);if(d.fcTargetOn!==undefined)setFcTargetOn(d.fcTargetOn);if(d.fcTarget!==undefined)setFcTarget(d.fcTarget);
+          if(d.annuali)setAnnuali(d.annuali);
           setModal({em:"\u2705",tit:"Backup ripristinato!",msg:"Tutti i dati sono stati ricaricati dal file.",buttons:[{lbl:"OK"}]});
         }},{lbl:"Annulla"}]});
     };
@@ -1771,6 +1876,7 @@ function App(){
         return e("div",null,
           e("div",{style:{background:C.nv,borderRadius:14,padding:16,marginBottom:12,color:"#fff"}},
             e("div",{style:{fontSize:11,fontWeight:700,opacity:.85}},"TOTALE SPESE FISSE",H("fisse")),
+            quoteMeseTot>0.004?e("div",{style:{fontSize:10,opacity:.75,marginBottom:2}},"\u20AC"+f0(tFEmens)+" mensili + \u20AC"+fm(quoteMeseTot)+" di quote annuali"):null,
             e("div",{style:{display:"flex",alignItems:"baseline",gap:8,marginBottom:10}},
               e("div",{style:{fontSize:30,fontWeight:900}},"\u20AC "+f0(tFE)),
               tFE>tFP+0.004?e("div",{style:{fontSize:13,fontWeight:800,color:"#fca5a5"}},"(+\u20AC"+f0(tFE-tFP)+" di sforo)"):e("div",{style:{fontSize:12,opacity:.8}},"come da previsione")
@@ -1852,7 +1958,7 @@ function App(){
           e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
             e("span",{style:{fontSize:18}},s.icon),
             e("span",{style:{flex:1,fontSize:14,fontWeight:700}},s.nome,
-              s.gg?e("span",{style:{fontSize:10,fontWeight:700,color:scadutaNonSegnata(s)?C.rd:C.mu,marginLeft:6,whiteSpace:"nowrap"}},"\u{1F4C5} "+lblAddebito(s)):null),
+              s.gg?e("span",{style:{fontSize:10,fontWeight:700,color:C.mu,marginLeft:6,whiteSpace:"nowrap"}},"\u{1F4C5} "+lblAddebito(s)):null),
             s.blind?e("span",{style:{fontSize:11,fontWeight:800,color:C.aD,background:C.aL,borderRadius:6,padding:"3px 8px"}},"\u{1F512} \u20AC"+f0(s.prev)):
               (conf?e("span",{style:{fontSize:11,fontWeight:800,color:C.gn,background:C.gL,borderRadius:6,padding:"3px 8px"}},"\u2705 \u20AC"+fm(s.confVal)):
                 e("span",{style:{fontSize:11,fontWeight:700,color:C.mu}},"in corso"))
@@ -1864,9 +1970,13 @@ function App(){
             e("div",{style:{fontSize:11,color:sforo?C.rd:C.mu,fontWeight:sforo?800:600}},
               "\u20AC"+fm(conf?s.confVal:acc)+" spesi su \u20AC"+f0(s.prev)+" previsti"+(sforo?" \u{1F534} SFORATO: \u2212\u20AC"+fm(acc-s.prev)+" dal budget":""))
           ):null,
-          // addebito che risulta gia' passato ma non ancora segnato come uscito
-          scadutaNonSegnata(s)?e("div",{style:{paddingLeft:26,marginBottom:6}},
-            e("span",{style:{fontSize:11,fontWeight:800,color:C.aD,background:C.aL,borderRadius:6,padding:"3px 8px"}},"\u23F0 doveva uscire il "+lblAddebito(s)+": controlla se \u00e8 passata in banca")):null,
+          // addebito automatico: uscito da solo alla data (tocca per correggere se la banca ritarda)
+          uscitaAuto(s)?e("div",{style:{paddingLeft:26,marginBottom:6}},
+            e("span",{onClick:function(){setSf(function(prev){return prev.map(function(y){return y.id===s.id?Object.assign({},y,{pagOvr:false}):y;});});},
+              style:{fontSize:11,fontWeight:800,color:C.gn,background:C.gL,borderRadius:6,padding:"3px 8px",cursor:"pointer"}},"\u2713 uscita da sola il "+lblAddebito(s)+" \u00b7 tocca se NON \u00e8 passata")):null,
+          (s.blind&&s.gg&&s.pagOvr===false)?e("div",{style:{paddingLeft:26,marginBottom:6}},
+            e("span",{onClick:function(){setSf(function(prev){return prev.map(function(y){return y.id===s.id?Object.assign({},y,{pagOvr:null}):y;});});},
+              style:{fontSize:11,fontWeight:800,color:C.aD,background:C.aL,borderRadius:6,padding:"3px 8px",cursor:"pointer"}},"\u23F8\uFE0F segnata come NON passata \u00b7 tocca per tornare all'automatico")):null,
           // esito conferma
           conf&&diff>0.004?e("div",{style:{paddingLeft:26,marginBottom:6}},
             e("span",{style:{fontSize:11,fontWeight:800,color:C.gn,background:C.gL,borderRadius:6,padding:"3px 8px"}},"\u{1F416} +\u20AC"+fm(diff)+" messi da parte")):null,
@@ -1875,7 +1985,7 @@ function App(){
           // I TRE BOTTONI
           e("div",{style:{display:"flex",gap:6,paddingLeft:26,flexWrap:"wrap"}},
             s.blind?[
-              e("button",{key:"p",onClick:function(){setSf(function(prev){return prev.map(function(x){return x.id===s.id?Object.assign({},x,{pagato:!x.pagato}):x;});});},
+              s.gg?null:e("button",{key:"p",onClick:function(){setSf(function(prev){return prev.map(function(x){return x.id===s.id?Object.assign({},x,{pagato:!x.pagato}):x;});});},
                 style:{background:s.pagato?C.gn:"#fff",color:s.pagato?"#fff":C.gn,border:"1.5px solid "+C.gn,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:800,cursor:"pointer"}},s.pagato?"\u2705 Pagata":"\u2610 Segna pagata"),
               e("button",{key:"s",onClick:function(){blindaFissa(s);},
                 style:{background:"none",border:"1.5px solid "+C.mu,borderRadius:8,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer",color:C.mu}},"\u{1F513} Sblocca")
@@ -1900,6 +2010,107 @@ function App(){
         );
       })
     )):null,
+
+    // ===== ANNUALI E SEMESTRALI (dentro la scheda Fisse) =====
+    tab==="fisse"?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.pu}},
+      e("div",{style:{fontWeight:800,fontSize:17,marginBottom:2,color:C.gD}},"\u{1F5D3}\uFE0F Annuali e semestrali",H("annuali")),
+      e("div",{style:{fontSize:11,color:C.mu,marginBottom:12,lineHeight:1.5}},"IMU, assicurazione, bollo, usura auto: escono una volta ogni tanto, ma si accumulano ogni mese. La quota pesa sul budget come una fissa."),
+      annuali.length===0?e("div",{style:{fontSize:12,color:C.mu,fontStyle:"italic",marginBottom:10}},"Nessuna voce ancora. Aggiungi la prima qui sotto."):null,
+      annuali.map(function(a){
+        var q=quotaAnn(a,ci.iniTs);
+        var mR=a.scad?mesiRimAnn(a,ci.iniTs):0;
+        var pct=a.scad&&a.imp>0?Math.min(100,(a.acc||0)/a.imp*100):0;
+        var scadL=a.scad?new Date(a.scad).toLocaleDateString("it-IT"):null;
+        var inScad=a.scad&&mR<=1;
+        return e("div",{key:a.id,style:{padding:"10px 0",borderBottom:"1px solid "+C.ln}},
+          e("div",{style:{display:"flex",alignItems:"center",gap:8}},
+            e("span",{style:{fontSize:19}},a.icon),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontSize:14,fontWeight:700,color:C.gD}},a.nome),
+              e("div",{style:{fontSize:10,color:inScad?C.rd:C.mu,fontWeight:inScad?800:500}},
+                a.scad?((inScad?"\u23F0 SCADE: ":"scade il ")+scadL+" \u00b7 "+(mR===1?"ultimo mese":mR+" mesi per accumulare")):"fondo continuo, senza scadenza")
+            ),
+            e("span",{style:{textAlign:"right"}},
+              e("div",{style:{fontSize:13,fontWeight:900,fontFamily:"monospace",color:C.pu}},"\u20AC"+fm(q)+"/mese"),
+              a.scad?e("div",{style:{fontSize:9,color:C.mu}},"su \u20AC"+f0(a.imp)+" totali"):null
+            ),
+            e("button",{onClick:function(){
+              setModal({em:"\u{1F5D1}\uFE0F",tit:"Eliminare "+a.nome+"?",
+                msg:(a.acc>0.004?("Ci sono \u20AC"+fm(a.acc)+" accantonati: torneranno soldi normali sul conto. "):"")+"La quota non peser\u00e0 pi\u00f9 sul budget. Verr\u00e0 tolta anche dall'altro telefono.",
+                buttons:[{lbl:"\u{1F5D1}\uFE0F Elimina",danger:true,fn:function(){setAnnuali(function(prev){return prev.filter(function(x){return x.id!==a.id;});});}},{lbl:"Annulla"}]});
+            },style:{background:"none",border:"none",fontSize:16,cursor:"pointer",color:C.rd,padding:"0 2px"}},"\u2715")
+          ),
+          e("div",{style:{display:"flex",alignItems:"center",gap:8,marginTop:6}},
+            e("div",{style:{flex:1,background:C.ln,borderRadius:8,height:9,overflow:"hidden"}},
+              a.scad?e("div",{style:{width:pct+"%",height:"100%",background:pct>=100?C.gn:C.pu,borderRadius:8}}):e("div",{style:{width:"100%",height:"100%",background:C.pu+"55",borderRadius:8}})
+            ),
+            e("span",{style:{fontSize:11,fontWeight:800,fontFamily:"monospace",color:C.gD,whiteSpace:"nowrap"}},"\u20AC"+fm(a.acc||0)+(a.scad?(" / "+f0(a.imp)):" nel fondo"))
+          ),
+          annPay&&annPay.id===a.id?e("div",{style:{display:"flex",gap:6,marginTop:8,alignItems:"center"}},
+            e("input",{type:"number",inputMode:"decimal",value:annPay.imp===0?"":annPay.imp,placeholder:"\u20AC importo pagato",autoFocus:true,onChange:function(ev){setAnnPay({id:a.id,imp:parseFloat(ev.target.value)||0});},style:{flex:1,padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.pu,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}}),
+            e("button",{onClick:function(){pagaAnnuale(a,annPay.imp);},style:{background:C.pu,color:"#fff",border:"none",borderRadius:10,padding:"9px 14px",fontWeight:800,fontSize:13,cursor:"pointer"}},"\u2713"),
+            e("button",{onClick:function(){setAnnPay(null);},style:{background:"none",border:"1px solid "+C.ln,borderRadius:10,padding:"9px 10px",fontSize:13,cursor:"pointer",color:C.mu}},"\u00d7")
+          ):e("div",{style:{marginTop:8}},
+            e("button",{onClick:function(){setAnnPay({id:a.id,imp:a.scad?a.imp:0});},style:{background:inScad?C.pu:"#fff",color:inScad?"#fff":C.pu,border:"1.5px solid "+C.pu,borderRadius:9,padding:"7px 12px",fontSize:12,fontWeight:800,cursor:"pointer"}},a.scad?"\u{1F4B8} Pagata":"\u{1F527} Usa il fondo")
+          )
+        );
+      }),
+      accAnnTot>0.004?e("div",{style:{display:"flex",justifyContent:"space-between",marginTop:10,fontSize:13,fontWeight:900,color:C.pu}},
+        e("span",null,"Totale accantonato"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(accAnnTot))
+      ):null,
+      annForm?e("div",{style:{background:"#faf9f5",borderRadius:12,padding:12,marginTop:12}},
+        e("div",{style:{fontSize:13,fontWeight:800,color:C.gD,marginBottom:8}},"Nuova voce annuale"),
+        e("div",{style:{display:"flex",gap:6,marginBottom:8}},
+          e("select",{id:"annIcon",defaultValue:"\u{1F697}",style:{fontSize:18,padding:"6px 4px",borderRadius:8,border:"1.5px solid "+C.ln,background:"#fff"}},
+            ["\u{1F697}","\u{1F6E1}\uFE0F","\u{1F3E0}","\u{1F4C4}","\u{1F527}","\u{1F3DB}\uFE0F","\u26FD","\u{1F4BB}","\u{1F9FE}"].map(function(x){return e("option",{key:x,value:x},x);})),
+          e("input",{id:"annNome",type:"text",placeholder:"Nome (es. Assicurazione auto)",style:{flex:1,padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,boxSizing:"border-box"}})
+        ),
+        e("div",{style:{display:"flex",gap:6,marginBottom:8}},
+          [{v:"scad",l:"\u{1F4C5} Con scadenza"},{v:"fondo",l:"\u267E\uFE0F Fondo continuo"}].map(function(o){
+            return e("button",{key:o.v,onClick:function(){setAnnForm(o.v);},style:{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(annForm===o.v?C.pu:C.ln),background:annForm===o.v?"#f3e8ff":"#fff",fontWeight:annForm===o.v?900:600,fontSize:11,cursor:"pointer",color:annForm===o.v?C.pu:C.mu}},o.l);
+          })
+        ),
+        annForm==="fondo"?e("div",null,
+          e("input",{id:"annQuota",type:"number",inputMode:"decimal",placeholder:"\u20AC quota da accumulare ogni mese (es. 40)",style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginBottom:8}}),
+          e("div",{style:{fontSize:10,color:C.mu,fontStyle:"italic",marginBottom:8}},"Per l'usura auto e simili: si accumula per sempre, prelevi quando serve.")
+        ):e("div",null,
+          e("input",{id:"annImp",type:"number",inputMode:"decimal",placeholder:"\u20AC importo totale da pagare (es. 350)",style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginBottom:8}}),
+          e("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:8}},
+            e("span",{style:{fontSize:12,fontWeight:700,color:C.mu,whiteSpace:"nowrap"}},"Scade il"),
+            e("input",{id:"annScad",type:"date",min:tsToIso(ogTs),style:{flex:1,minWidth:0,padding:"8px 10px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,boxSizing:"border-box",fontFamily:"inherit"}})
+          ),
+          e("div",{style:{display:"flex",gap:6,marginBottom:8}},
+            e("span",{style:{fontSize:11,color:C.mu,fontWeight:700,alignSelf:"center"}},"Si ripete?"),
+            [{v:12,l:"ogni anno"},{v:6,l:"ogni 6 mesi"},{v:0,l:"una tantum"}].map(function(o){
+              return e("button",{key:o.v,id:"annRic"+o.v,onClick:function(ev){
+                [12,6,0].forEach(function(x){var b=document.getElementById("annRic"+x);if(b){b.style.borderColor=(x===o.v)?"#7c3aed":"#e8e4da";b.style.fontWeight=(x===o.v)?"900":"600";b.dataset.sel=(x===o.v)?"1":"";}});
+              },"data-sel":o.v===12?"1":"",style:{flex:1,padding:"7px 2px",borderRadius:9,border:"2px solid "+(o.v===12?C.pu:C.ln),background:"#fff",fontWeight:o.v===12?900:600,fontSize:10,cursor:"pointer",color:C.gD}},o.l);
+            })
+          )
+        ),
+        e("div",{style:{display:"flex",gap:8}},
+          e("button",{onClick:function(){
+            var nome=(document.getElementById("annNome")||{}).value||"";
+            var icon=(document.getElementById("annIcon")||{}).value||"\u{1F4C4}";
+            if(!nome){setModal({em:"\u270F\uFE0F",tit:"Manca il nome",msg:"Scrivi come si chiama questa voce.",buttons:[{lbl:"OK"}]});return;}
+            if(annForm==="fondo"){
+              var qm=parseFloat((document.getElementById("annQuota")||{}).value)||0;
+              if(qm<=0){setModal({em:"\u270F\uFE0F",tit:"Manca la quota",msg:"Scrivi quanto vuoi accumulare ogni mese.",buttons:[{lbl:"OK"}]});return;}
+              setAnnuali(function(prev){return prev.concat([{id:mkId(),nome:nome,icon:icon,imp:0,scad:null,quotaMan:qm,ric:0,acc:0,ts:Date.now()}]);});
+            }else{
+              var imp=parseFloat((document.getElementById("annImp")||{}).value)||0;
+              var scadIso=(document.getElementById("annScad")||{}).value||"";
+              if(imp<=0||!scadIso){setModal({em:"\u270F\uFE0F",tit:"Mancano i dati",msg:"Servono l'importo totale e la data di scadenza.",buttons:[{lbl:"OK"}]});return;}
+              var p=scadIso.split("-");var sc=new Date(+p[0],+p[1]-1,+p[2]);sc.setHours(0,0,0,0);
+              var ric=12;[12,6,0].forEach(function(x){var b=document.getElementById("annRic"+x);if(b&&b.dataset.sel==="1")ric=x;});
+              setAnnuali(function(prev){return prev.concat([{id:mkId(),nome:nome,icon:icon,imp:imp,scad:sc.getTime(),quotaMan:0,ric:ric,acc:0,ts:Date.now()}]);});
+            }
+            setAnnForm(false);
+          },style:{flex:1,background:C.pu,color:"#fff",border:"none",borderRadius:10,padding:11,fontWeight:800,fontSize:14,cursor:"pointer"}},"Aggiungi"),
+          e("button",{onClick:function(){setAnnForm(false);},style:{background:"none",border:"1px solid "+C.ln,borderRadius:10,padding:"11px 14px",fontSize:13,cursor:"pointer",color:C.mu}},"Annulla")
+        )
+      ):e("button",{onClick:function(){setAnnForm("scad");},style:{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"1.5px dashed "+C.pu,background:"#fff",color:C.pu,fontWeight:800,fontSize:13,cursor:"pointer"}},"+ Aggiungi voce annuale")
+    ):null,
 
     // SPESE
     // DOVE VANNO I SOLDI
@@ -2144,209 +2355,187 @@ function App(){
 
     // ===== SCHEDA CONTO: il denaro vero =====
     tab==="conto"?e("div",null,
-      // Card ingresso dati
-      e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
-        e("div",{style:{fontWeight:800,fontSize:17,marginBottom:4,color:C.gD}},"\u{1F3E6} Il conto torna?",H("contoPartenza")),
-        e("div",{style:{fontSize:11,color:C.mu,marginBottom:12}},"Confronta l'app con il conto vero della banca: cos\u00ec scopri subito se qualcosa manca all'appello."),
-        e("div",{style:{fontSize:12,fontWeight:700,marginBottom:6,color:C.gD}},"\u{1F4CD} Saldo di partenza del ciclo",H("contoPartenzaModo")),
+      // ================== PARTENZA (solo finche' il conto non e' attivo) ==================
+      !contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
+        e("div",{style:{fontWeight:800,fontSize:17,marginBottom:4,color:C.gD}},"\u{1F3E6} Colleghiamo il conto",H("contoPartenza")),
+        e("div",{style:{fontSize:12,color:C.mu,marginBottom:12,lineHeight:1.6}},"Serve un solo numero per iniziare: un saldo letto dall'app della banca. Poi questa scheda ti dir\u00e0 sempre quanto \u00e8 davvero tuo."),
+        e("div",{style:{fontSize:12,fontWeight:700,marginBottom:6,color:C.gD}},"Che saldo stai scrivendo?",H("contoPartenzaModo")),
         e("div",{style:{display:"flex",gap:6,marginBottom:8}},
-          [{v:"paga",l:"\u{1F4C5} \u00c8 il saldo del "+ci.iL},{v:"oggi",l:"\u23F0 \u00c8 il saldo di oggi"}].map(function(o){
-            return e("button",{key:o.v,onClick:function(){setContoIniModo(o.v);if(contoIniRaw>0)setContoPartenza(contoIniRaw,o.v);},style:{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(contoIniModo===o.v?C.gd:C.ln),background:contoIniModo===o.v?C.aL:"#fff",fontWeight:contoIniModo===o.v?900:600,fontSize:11,cursor:"pointer",color:contoIniModo===o.v?C.aD:C.mu,fontFamily:"inherit"}},o.l);
+          [{v:"paga",l:"\u{1F4C5} Il saldo del "+ci.iL},{v:"oggi",l:"\u23F0 Il saldo di oggi"}].map(function(o){
+            return e("button",{key:o.v,onClick:function(){setContoIniModo(o.v);if(contoIniRaw>0)setContoPartenza(contoIniRaw,o.v);},style:{flex:1,padding:"9px 4px",borderRadius:10,border:"2px solid "+(contoIniModo===o.v?C.gd:C.ln),background:contoIniModo===o.v?C.gL:"#fff",fontWeight:contoIniModo===o.v?900:600,fontSize:11,cursor:"pointer",color:contoIniModo===o.v?C.gn:C.mu}},o.l);
           })
         ),
-        e("input",{type:"number",inputMode:"decimal",value:contoIniRaw===0?"":contoIniRaw,placeholder:contoIniModo==="paga"?"Es. 3850 \u2014 il saldo esatto del giorno paga":"Es. 2840 \u2014 quello che leggi adesso",onChange:function(ev){setContoPartenza(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}}),
-        contoIniModo==="paga"?e("div",{style:{fontSize:10,color:C.mu,marginTop:4,fontStyle:"italic"}},"Nessuna ricostruzione: uso questo numero cos\u00ec com'\u00e8, stipendio compreso."):null,
-        (contoAttivo&&Math.abs(contoIni-contoIniRaw)>0.004)?e("div",{style:{background:C.bL,borderRadius:10,padding:"8px 10px",fontSize:11,color:C.gD,marginTop:8,lineHeight:1.5}},
-          "\u{1F527} Scritto il "+contoIniData+", quindi in ritardo: alle uscite gi\u00e0 registrate nei giorni passati (\u20AC"+fm(contoIni-contoIniRaw)+") ci ho pensato io. Partenza ricostruita: ",e("b",null,"\u20AC"+fm(contoIni)),"."
-        ):null,
-        (contoIni>0&&contoIniCiclo!==ci.iniTs)?e("div",{style:{background:C.aL,borderRadius:10,padding:"8px 10px",fontSize:11,color:C.aD,fontWeight:700,marginTop:8}},
-          "\u26A0\uFE0F La partenza salvata \u00e8 del ciclo scorso: riscrivi il saldo per questo ciclo e la riconciliazione riparte."
-        ):null,
-        e("div",{style:{fontSize:12,fontWeight:700,marginTop:14,marginBottom:4,color:C.gD}},"\u{1F4F1} Saldo che leggi ORA in banca"),
-        e("input",{type:"number",inputMode:"decimal",value:contoOggi===0?"":contoOggi,placeholder:"Apri l'app della banca e copia il saldo",onChange:function(ev){setContoOggi(parseFloat(ev.target.value)||0);setContoOggiData(ogS);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}}),
-        (contoOggi>0&&contoOggiData)?e("div",{style:{fontSize:10,color:C.mu,marginTop:4}},"aggiornato il "+contoOggiData+(contoOggiData!==ogS?" \u2014 se \u00e8 vecchio, riscrivilo":"")):null,
-        contoOggi>0?e("button",{onClick:registraLettura,style:{width:"100%",marginTop:8,padding:10,borderRadius:10,border:"1.5px solid "+C.bl,background:C.bL,color:C.bl,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u{1F4CC} Registra questa lettura"):null,
-        e("div",{style:{fontSize:12,fontWeight:700,marginTop:14,marginBottom:4,color:C.gD}},"\u2795\u2796 Movimenti fuori app"),
-        e("input",{type:"number",inputMode:"decimal",value:contoExtra===0?"":contoExtra,placeholder:"+ entrate extra / \u2212 uscite non tracciate",onChange:function(ev){setContoExtra(parseFloat(ev.target.value)||0);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box"}}),
-        e("div",{style:{fontSize:10,color:C.mu,marginTop:4,fontStyle:"italic"}},"Esempio: +50 per un rimborso arrivato sul conto, \u221230 per un bonifico che non registri nell'app.")
-      ),
-      // Invito se la riconciliazione non e' ancora attiva
-      !contoAttivo?e("div",{style:{background:C.aL,borderRadius:14,padding:14,marginBottom:12,fontSize:12,color:C.aD,fontWeight:600,lineHeight:1.5}},
-        "\u{1F446} Scrivi il saldo di partenza e quello attuale: da quel momento questa scheda ti dice ogni giorno se i soldi veri tornano con l'app."
+        e("input",{type:"number",inputMode:"decimal",value:contoIniRaw===0?"":contoIniRaw,placeholder:contoIniModo==="paga"?("Saldo del "+ci.iL+", prima di ogni spesa"):"Saldo che leggi ADESSO in banca",onChange:function(ev){setContoPartenza(parseFloat(ev.target.value)||0,contoIniModo);},style:{width:"100%",padding:"11px 12px",borderRadius:10,border:"1.5px solid "+C.gd,fontSize:16,fontFamily:"monospace",boxSizing:"border-box",marginBottom:6}}),
+        contoIniModo==="oggi"&&contoIni>0?e("div",{style:{fontSize:11,color:C.mu,fontStyle:"italic",lineHeight:1.5}},"Risalgo io al giorno paga: con le spese gi\u00e0 registrate, il "+ci.iL+" c'erano \u20AC"+fm(contoIni)+"."):null
       ):null,
-      // Verdetto
-      (contoAttivo&&contoOggi>0)?e("div",{style:{background:Math.abs(deltaConto)<=2?C.gL:(deltaConto>2?C.bL:C.rL),borderRadius:14,padding:16,marginBottom:12,textAlign:"center",border:"2px solid "+(Math.abs(deltaConto)<=2?C.gn:(deltaConto>2?C.bl:C.rd))+"55"}},
-        e("div",{style:{fontSize:36,lineHeight:1.1}},Math.abs(deltaConto)<=2?"\u2705":(deltaConto>2?"\u{1F914}":"\u{1F50E}")),
-        e("div",{style:{fontSize:16,fontWeight:900,marginTop:4,color:Math.abs(deltaConto)<=2?C.gn:(deltaConto>2?C.bl:C.rd)}},
-          Math.abs(deltaConto)<=2?"TUTTO TORNA":(deltaConto>2?"\u20AC"+fm(deltaConto)+" IN PI\u00d9 DEL PREVISTO":"MANCANO \u20AC"+fm(Math.abs(deltaConto))+" ALL'APPELLO")),
-        e("div",{style:{fontSize:12,color:C.gD,marginTop:6,lineHeight:1.5}},
-          Math.abs(deltaConto)<=2?"Scarto di \u20AC"+fm(Math.abs(deltaConto))+": fisiologico. L'app e la banca raccontano la stessa storia.":
-          (deltaConto>2?"Probabile entrata non registrata (rimborso, regalo, giroconto): aggiungila nei movimenti fuori app qui sopra.":
-          "Probabile uscita non registrata: uno scontrino dimenticato o un addebito automatico. Cercala e registrala nelle Spese (puoi retrodatarla), oppure sistemala qui sotto."),
-          H("contoVerdetto")),
-        Math.abs(deltaConto)>2?e("button",{onClick:function(){rettificaConto(deltaConto);},style:{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"none",background:deltaConto<0?C.rd:C.bl,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}},"\u2696\uFE0F Sistemiamo questi \u20AC"+fm(Math.abs(deltaConto))):null
-      ):null,
-      // PREVISIONE dall'ultimo punto di controllo
-      (lettPrec&&contoAttivo)?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.bl}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:8}},"\u{1F52E} Cosa dovresti leggere oggi",H("contoPrevisione")),
-        e("div",{style:{fontSize:12,fontFamily:"monospace",lineHeight:1.9,color:C.gD}},
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"Letto il "+lettPrec.d+(giorniDaLett>0?" ("+giorniDaLett+(giorniDaLett===1?" giorno":" giorni")+" fa)":"")),e("span",{style:{fontWeight:800}},"\u20AC"+fm(lettPrec.v))),
-          e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u2212 uscite registrate da allora"),e("span",null,"\u20AC"+fm(usciteDaLett))),
-          (contoExtra-(lettPrec.ex||0))!==0?e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u00b1 fuori app da allora"),e("span",null,"\u20AC"+fm(contoExtra-(lettPrec.ex||0)))):null,
-          e("div",{style:{display:"flex",justifyContent:"space-between",borderTop:"1.5px solid "+C.ln,marginTop:4,paddingTop:4}},e("span",{style:{fontWeight:900}},"Oggi dovresti leggere"),e("span",{style:{fontWeight:900,fontSize:14}},"\u20AC"+fm(attesoOggi)))
+
+      // ================== SALDO DI OGGI (input sempre in cima) ==================
+      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:"13px 16px",marginBottom:12,borderLeft:"4px solid "+C.gd}},
+        e("div",{style:{display:"flex",alignItems:"center",gap:8}},
+          e("span",{style:{fontSize:19}},"\u{1F3E6}"),
+          e("input",{type:"number",inputMode:"decimal",value:contoOggi===0?"":contoOggi,placeholder:"Saldo che leggi ORA in banca",onChange:function(ev){setContoOggi(parseFloat(ev.target.value)||0);setContoOggiData(ogS);},style:{flex:1,minWidth:0,padding:"10px 12px",borderRadius:10,border:"1.5px solid "+C.gd,fontSize:16,fontFamily:"monospace",boxSizing:"border-box"}}),
+          e("button",{onClick:registraLettura,style:{background:C.gL,color:C.gn,border:"1.5px solid "+C.gn,borderRadius:10,padding:"10px 12px",fontSize:12,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},"\u{1F4CC} Salva")
         ),
-        scartoPrev!=null?e("div",{style:{background:Math.abs(scartoPrev)<=2?C.gL:C.rL,borderRadius:10,padding:"10px 12px",marginTop:10,fontSize:12,fontWeight:700,color:Math.abs(scartoPrev)<=2?C.gn:C.rd,textAlign:"center"}},
-          Math.abs(scartoPrev)<=2?"\u2705 Il saldo letto combacia: in questi "+(giorniDaLett||1)+" giorni non \u00e8 sfuggito niente.":
-          (scartoPrev<0?"\u{1F50E} Ne leggi \u20AC"+fm(Math.abs(scartoPrev))+" meno: la spesa dimenticata \u00e8 di questi ultimi "+(giorniDaLett||1)+" giorni.":"\u{1F914} Ne leggi \u20AC"+fm(scartoPrev)+" pi\u00f9 del previsto: entrata non registrata in questi giorni.")
-        ):e("div",{style:{fontSize:11,color:C.mu,marginTop:8,fontStyle:"italic"}},"Aggiorna il saldo di oggi e registralo per confrontare."),
-        (contoLetture&&contoLetture.length>1)?e("div",{style:{marginTop:10,borderTop:"1px solid "+C.ln,paddingTop:8}},
-          e("div",{style:{fontSize:11,fontWeight:800,color:C.mu,marginBottom:4}},"Punti di controllo"),
-          contoLetture.slice().sort(function(a,b){return keyD(b.d)-keyD(a.d);}).slice(0,6).map(function(r){
-            return e("div",{key:r.d,style:{display:"flex",justifyContent:"space-between",fontSize:11,padding:"2px 0",color:C.mu}},
-              e("span",null,r.d),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(r.v)));
-          })
+        e("div",{style:{fontSize:10,color:C.mu,marginTop:6}},contoOggi>0?("aggiornato "+(contoOggiData===ogS?"oggi":("il "+contoOggiData))+" \u00b7 \u{1F4CC} Salva lo tiene come punto di controllo per le previsioni"):"copia il saldo dall'app della banca: da qui parte tutto"),
+        scartoPrev!=null?e("div",{style:{marginTop:8,background:Math.abs(scartoPrev)<=2?C.gL:C.aL,borderRadius:8,padding:"7px 10px",fontSize:11,fontWeight:700,color:Math.abs(scartoPrev)<=2?C.gn:C.aD,lineHeight:1.5}},
+          Math.abs(scartoPrev)<=2?("\u2713 Torna con la lettura di "+giorniDaLett+" giorni fa: tutto registrato."):("Dalla lettura di "+giorniDaLett+" giorni fa mi aspettavo \u20AC"+fm(attesoOggi)+": ci sono \u20AC"+fm(Math.abs(scartoPrev))+" di "+(scartoPrev<0?"uscite":"entrate")+" non registrate.")):null
+      ):null,
+
+      // ================== BLOCCO 1: QUANTO PUOI SPENDERE ==================
+      contoAttivo&&contoOggi>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gn}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:8}},"\u{1F4B0} Quanto puoi spendere",H("contoLibero")),
+        e("div",{style:{background:liberoVero>=0?C.gL:C.rL,borderRadius:12,padding:"12px 10px",textAlign:"center",marginBottom:8}},
+          e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,letterSpacing:.5}},"VERAMENTE TUOI, ADESSO"),
+          e("div",{style:{fontSize:30,fontWeight:900,color:liberoVero>=0?C.gn:C.rd,lineHeight:1.15}},"\u20AC"+fm(liberoVero)),
+          e("div",{style:{fontSize:10,color:C.mu,marginTop:3}},"\u20AC"+fm(contoOggi)+" letti \u2212 \u20AC"+fm(usciraTot)+" da pagare \u2212 \u20AC"+fm(risparmioSulConto)+" salvadanai"+(accAnnTot>0.004?" \u2212 \u20AC"+fm(accAnnTot)+" annuali":""))
+        ),
+        e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"3px 0"}},
+          e("span",{style:{color:C.mu}},"\u2212 materasso da non toccare"),
+          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gD}},"\u20AC"+fm(fcNetto))
+        ),
+        e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:900,padding:"5px 0",borderTop:"1.5px solid "+C.ln,color:stipLibero>=0?C.gn:C.rd}},
+          e("span",null,stipLibero>=0?"= Liberi dello stipendio":"= Materasso gi\u00e0 intaccato"),
+          e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(stipLibero))
+        ),
+        stipLibero>=0&&ci.gR>0?e("div",{style:{fontSize:11,color:C.mu,marginBottom:6}},"\u20AC"+fm(stipLibero/ci.gR)+" al giorno per i "+ci.gR+" giorni fino al "+ci.fL):null,
+        crescitaPrev!=null?e("div",{style:{background:crescitaPrev>=0?C.gL:C.rL,borderRadius:9,padding:"9px 10px",marginTop:4,fontSize:12,fontWeight:800,color:crescitaPrev>=0?C.gn:C.rd,lineHeight:1.5}},
+          crescitaPrev>=0?("\u{1F4C8} Sopra il previsto: di questo passo il materasso crescer\u00e0 di \u20AC"+fm(crescitaPrev)+"."):
+            ("\u26A0\uFE0F Sotto il previsto di \u20AC"+fm(-crescitaPrev)+": per non intaccare il materasso togli \u20AC"+fm(ci.gR>0?(-crescitaPrev)/ci.gR:-crescitaPrev)+" al giorno.")):null,
+        (fcTargetOn&&fcTarget>0&&crescitaPrev!=null)?e("div",{style:{fontSize:11,fontWeight:800,color:fcTargetOk?C.gn:C.aD,marginTop:6}},
+          fcTargetOk?("\u{1F3AF} Obiettivo +\u20AC"+f0(fcTarget)+" raggiunto"):("\u{1F3AF} Obiettivo +\u20AC"+f0(fcTarget)+": mancano \u20AC"+fm(Math.max(0,fcTarget-crescitaPrev)))):null,
+        e("button",{onClick:function(){setShowRacc(true);},style:{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"1.5px solid "+C.nv,background:"#fff",color:C.nv,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u{1F4D6} Raccontami tutto passo passo")
+      ):null,
+
+      // ================== BLOCCO 2: IL CONTO TORNA? ==================
+      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:8}},"\u2696\uFE0F Il conto torna?",H("contoVerdetto")),
+        e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"3px 0"}},
+          e("span",{style:{color:C.mu}},"Dovrebbe esserci"),
+          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gD}},"\u20AC"+fm(saldoAtteso))
+        ),
+        contoOggi>0?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"3px 0"}},
+          e("span",{style:{color:C.mu}},"Leggi in banca"),
+          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gD}},"\u20AC"+fm(contoOggi))
+        ):null,
+        contoOggi>0?e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:Math.abs(deltaConto)<=2?C.gL:C.rL,borderRadius:9,padding:"9px 10px",marginTop:6}},
+          e("span",{style:{fontSize:13,fontWeight:900,color:Math.abs(deltaConto)<=2?C.gn:C.rd}},Math.abs(deltaConto)<=2?"\u2713 TORNA":(deltaConto<0?"MANCANO \u20AC"+fm(-deltaConto):"CI SONO \u20AC"+fm(deltaConto)+" IN PI\u00d9")),
+          e("span",{style:{fontFamily:"monospace",fontSize:13,fontWeight:900,color:Math.abs(deltaConto)<=2?C.gn:C.rd}},(deltaConto>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(deltaConto)))
+        ):e("div",{style:{fontSize:11,color:C.mu,fontStyle:"italic"}},"Scrivi il saldo qui sopra per il confronto."),
+        (contoOggi>0&&Math.abs(deltaConto)>2)?e("button",{onClick:function(){rettificaConto(deltaConto);},style:{width:"100%",marginTop:8,padding:11,borderRadius:10,border:"none",background:deltaConto<0?C.rd:C.bl,color:"#fff",fontWeight:800,fontSize:14,cursor:"pointer"}},"\u2696\uFE0F Sistemiamo questi \u20AC"+fm(Math.abs(deltaConto))):null,
+        e("button",{onClick:function(){setShowDett(!showDett);},style:{width:"100%",marginTop:8,padding:9,borderRadius:10,border:"1px dashed "+C.ln,background:"none",color:C.mu,fontWeight:700,fontSize:12,cursor:"pointer"}},showDett?"\u25B2 nascondi il calcolo":"\u{1F50D} vedi il calcolo riga per riga"),
+        showDett?e("div",{style:{marginTop:10,borderTop:"1px solid "+C.ln,paddingTop:8}},
+          e("div",{style:{fontSize:12,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F4C4} Estratto conto dell'app"),
+          e("div",{style:{fontSize:10,color:C.mu,marginBottom:8}},"riga per riga, come scende il saldo dal giorno paga"),
+          e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.gL,borderRadius:8,padding:"7px 10px",marginBottom:6}},
+            e("span",{style:{fontSize:12,fontWeight:800,color:C.gD}},"Partenza "+ci.iL),
+            e("span",{style:{fontSize:14,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoIni))
+          ),
+          righeUscite.length>0?e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:6,marginBottom:2,letterSpacing:.5}},"USCITE GI\u00c0 AVVENUTE"):null,
+          righeUscite.map(function(r){
+            return e("div",{key:r.s.id,style:{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+              e("span",{style:{fontSize:14}},r.s.icon),
+              e("span",{style:{flex:1,minWidth:0}},
+                e("div",{style:{fontWeight:700,color:C.gD}},r.s.nome),
+                e("div",{style:{fontSize:9,color:C.mu}},r.nota)
+              ),
+              e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd,whiteSpace:"nowrap"}},"\u2212"+fm(r.v)),
+              e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:66,textAlign:"right",whiteSpace:"nowrap"}},fm(r.saldo))
+            );
+          }),
+          e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:6,marginBottom:2,letterSpacing:.5}},"SPESE VARIABILI"),
+          e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:14}},"\u{1F6D2}"),
+            e("span",{style:{flex:1,minWidth:0}},
+              e("div",{style:{fontWeight:700,color:C.gD}},nVarReali+(nVarReali===1?" spesa registrata":" spese registrate")),
+              e("div",{style:{fontSize:9,color:C.mu}},"gli acconti sulle fisse sono gi\u00e0 conteggiati sopra")
+            ),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd,whiteSpace:"nowrap"}},"\u2212"+fm(usciteVarReali)),
+            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:66,textAlign:"right",whiteSpace:"nowrap"}},fm(contoIni-usciteFisseReali-usciteVarReali))
+          ),
+          Math.abs(contoExtra)>0.004?e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"4px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:14}},"\u{1F504}"),
+            e("span",{style:{flex:1,minWidth:0}},e("div",{style:{fontWeight:700,color:C.gD}},"Movimenti fuori app")),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:contoExtra>=0?C.gn:C.rd,whiteSpace:"nowrap"}},(contoExtra>=0?"+":"\u2212")+fm(Math.abs(contoExtra))),
+            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:66,textAlign:"right",whiteSpace:"nowrap"}},fm(saldoAtteso))
+          ):null,
+          e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bL,borderRadius:8,padding:"8px 10px",marginTop:6}},
+            e("span",{style:{fontSize:12,fontWeight:900,color:C.gD}},"= Dovrebbe esserci"),
+            e("span",{style:{fontSize:14,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(saldoAtteso))
+          )
         ):null
       ):null,
-      // ===== ESTRATTO CONTO: ogni voce che si sottrae, con il saldo che scende =====
-      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.nv}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F4C4} Estratto conto dell'app",H("contoVerdetto")),
-        e("div",{style:{fontSize:11,color:C.mu,marginBottom:10}},"riga per riga, come scende il saldo dal giorno paga"),
-        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.gL,borderRadius:8,padding:"8px 10px",marginBottom:6}},
-          e("span",{style:{fontSize:12,fontWeight:800,color:C.gD}},"Partenza "+ci.iL),
-          e("span",{style:{fontSize:15,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoIni))
-        ),
-        righeUscite.length>0?e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"USCITE GI\u00c0 AVVENUTE"):null,
-        righeUscite.map(function(r,k){
-          return e("div",{key:r.s.id,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
-            e("span",{style:{fontSize:14}},r.s.icon),
-            e("span",{style:{flex:1,minWidth:0}},
-              e("div",{style:{fontWeight:700,color:C.gD}},r.s.nome),
-              e("div",{style:{fontSize:9,color:C.mu}},r.nota)
-            ),
-            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd,whiteSpace:"nowrap"}},"\u2212"+fm(r.v)),
-            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(r.saldo))
-          );
-        }),
-        e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"SPESE VARIABILI"),
-        e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
-          e("span",{style:{fontSize:14}},"\u{1F6D2}"),
-          e("span",{style:{flex:1,minWidth:0}},
-            e("div",{style:{fontWeight:700,color:C.gD}},nVarReali+(nVarReali===1?" spesa registrata":" spese registrate")),
-            e("div",{style:{fontSize:9,color:C.mu}},"gli acconti sulle fisse sono gi\u00e0 conteggiati sopra")
-          ),
-          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd,whiteSpace:"nowrap"}},"\u2212"+fm(usciteVarReali)),
-          e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(contoIni-usciteFisseReali-usciteVarReali))
-        ),
-        Math.abs(contoExtra)>0.004?e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
-          e("span",{style:{fontSize:14}},"\u{1F504}"),
-          e("span",{style:{flex:1,minWidth:0}},e("div",{style:{fontWeight:700,color:C.gD}},"Movimenti fuori app")),
-          e("span",{style:{fontFamily:"monospace",fontWeight:800,color:contoExtra>=0?C.gn:C.rd,whiteSpace:"nowrap"}},(contoExtra>=0?"+":"\u2212")+fm(Math.abs(contoExtra))),
-          e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(saldoAtteso))
-        ):null,
-        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bL,borderRadius:8,padding:"9px 10px",marginTop:8}},
-          e("span",{style:{fontSize:12,fontWeight:900,color:C.gD}},"= Dovrebbe esserci"),
-          e("span",{style:{fontSize:16,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(saldoAtteso))
-        ),
-        contoOggi>0?e("div",null,
-          e("div",{style:{display:"flex",justifyContent:"space-between",padding:"6px 10px",fontSize:12}},
-            e("span",{style:{fontWeight:700,color:C.mu}},"Letto in banca"),
-            e("span",{style:{fontWeight:800,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoOggi))
-          ),
-          e("div",{style:{display:"flex",justifyContent:"space-between",padding:"6px 10px",fontSize:13,borderTop:"1px solid "+C.ln}},
-            e("span",{style:{fontWeight:900,color:Math.abs(deltaConto)<=2?C.gn:C.rd}},"Differenza"),
-            e("span",{style:{fontWeight:900,fontFamily:"monospace",color:Math.abs(deltaConto)<=2?C.gn:C.rd}},(deltaConto>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(deltaConto)))
-          )
-        ):null,
-        e("div",{style:{fontSize:10,color:C.mu,marginTop:8,fontStyle:"italic",lineHeight:1.5}},"Qui compaiono solo i soldi gi\u00e0 usciti davvero. Le fisse non ancora addebitate e i salvadanai sono pi\u00f9 sotto: quelli sono ancora sul conto."),
-        e("button",{onClick:function(){setShowPag(true);},style:{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"1.5px solid "+C.nv,background:"#fff",color:C.nv,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u{1F4B3} Segna cosa hai gi\u00e0 pagato")
-      ):null,
-      // ===== DAL SALDO LETTO: cosa deve ancora uscire e cosa e' gia' risparmio =====
-      contoOggi>0?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F50D} Quanto \u00e8 davvero tuo",H("contoLibero")),
-        e("div",{style:{fontSize:11,color:C.mu,marginBottom:10}},"dai soldi che leggi in banca, tolgo quelli che hanno gi\u00e0 un destino"),
-        e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.bL,borderRadius:8,padding:"8px 10px",marginBottom:6}},
-          e("span",{style:{fontSize:12,fontWeight:800,color:C.gD}},"Saldo letto in banca"),
-          e("span",{style:{fontSize:15,fontWeight:900,fontFamily:"monospace",color:C.gD}},"\u20AC"+fm(contoOggi))
-        ),
-        prenotatoLista.length>0?e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"ANCORA DA PAGARE"):null,
-        prenotatoLista.map(function(x,k){
-          var saldoP=contoOggi-prenotatoLista.slice(0,k+1).reduce(function(a,y){return a+y.v;},0);
-          return e("div",{key:x.s.id,style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
-            e("span",{style:{fontSize:14}},x.s.icon),
+
+      // ================== BLOCCO 3: COSA DEVE ANCORA USCIRE ==================
+      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.aD}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:2}},"\u{1F4C5} Ancora da uscire dal conto",H("contoPrenotato")),
+        e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},"soldi che vedi in banca ma hanno gi\u00e0 un destino"),
+        prenotatoOrd.length===0?e("div",{style:{fontSize:12,color:C.gn,fontWeight:700,marginBottom:6}},"\u2713 Tutte le fisse del mese sono gi\u00e0 uscite."):null,
+        prenotatoOrd.map(function(x){
+          var t=tsAddebito(x.s);
+          return e("div",{key:x.s.id,style:{display:"flex",alignItems:"center",gap:6,padding:"6px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
+            e("span",{style:{fontSize:15}},x.s.icon),
             e("span",{style:{flex:1,minWidth:0}},
               e("div",{style:{fontWeight:700,color:C.gD}},x.s.nome),
-              e("div",{style:{fontSize:9,color:scadutaNonSegnata(x.s)?C.rd:C.mu}},x.s.gg?((scadutaNonSegnata(x.s)?"\u23F0 doveva uscire il ":"esce intorno al ")+lblAddebito(x.s)):(x.s.blind?"blindata, non ancora uscita":"manca questo al previsto"))
+              e("div",{style:{fontSize:9,color:C.mu}},t!=null?((x.s.pagOvr===false?"in ritardo \u00b7 attesa dal ":"esce da sola il ")+lblAddebito(x.s)):(x.s.blind?"senza data \u00b7 la spunti tu":"a consumo \u00b7 manca questo al previsto"))
             ),
-            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.aD,whiteSpace:"nowrap"}},"\u2212"+fm(x.v)),
-            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(saldoP))
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.aD,whiteSpace:"nowrap"}},"\u2212"+fm(x.v))
           );
         }),
-        risparmioSulConto>0.004?e("div",null,
-          e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginTop:8,marginBottom:2,letterSpacing:.5}},"RISPARMI DA NON TOCCARE",H("contoRisparmio")),
-          e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
-            e("span",{style:{fontSize:14}},"\u{1F416}"),
-            e("span",{style:{flex:1,minWidth:0}},
-              e("div",{style:{fontWeight:700,color:C.gD}},"Salvadanaio tassa"),
-              e("div",{style:{fontSize:9,color:C.mu}},quotaLibera<salvRisp-0.004?("di cui \u20AC"+fm(salvRisp-quotaLibera)+" gi\u00e0 promessi a obiettivi e fondi"):"tutto libero da destinare")
-            ),
-            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd,whiteSpace:"nowrap"}},"\u2212"+fm(salvRisp)),
-            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(contoOggi-usciraTot-salvRisp))
-          ),
-          savFisseTot>0.004?e("div",{style:{display:"flex",alignItems:"center",gap:6,padding:"5px 0",borderBottom:"1px solid "+C.ln,fontSize:12}},
-            e("span",{style:{fontSize:14}},"\u{1F4CC}"),
-            e("span",{style:{flex:1,minWidth:0}},
-              e("div",{style:{fontWeight:700,color:C.gD}},"Salvadanaio spese fisse"),
-              e("div",{style:{fontSize:9,color:C.mu}},"risparmiato sulle bollette gi\u00e0 confermate")
-            ),
-            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd,whiteSpace:"nowrap"}},"\u2212"+fm(savFisseTot)),
-            e("span",{style:{fontFamily:"monospace",fontSize:11,color:C.mu,width:70,textAlign:"right",whiteSpace:"nowrap"}},fm(liberoVero))
-          ):null
-        ):null,
-        e("div",{style:{background:liberoVero>=0?C.gL:C.rL,borderRadius:10,padding:"12px 10px",marginTop:10,textAlign:"center"}},
-          e("div",{style:{fontSize:11,fontWeight:800,color:C.mu}},"VERAMENTE LIBERO"),
-          e("div",{style:{fontSize:26,fontWeight:900,color:liberoVero>=0?C.gn:C.rd}},"\u20AC"+fm(liberoVero)),
-          e("div",{style:{fontSize:10,color:C.mu,marginTop:2}},"\u20AC"+fm(contoOggi)+" \u2212 \u20AC"+fm(usciraTot)+" da pagare \u2212 \u20AC"+fm(risparmioSulConto)+" di salvadanai")
-        )
-      ):null,
-      // Fondo cassa
-      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.pu}},
-        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:6}},"\u{1F3DB}\uFE0F Fondo cassa",H("fondoCassa")),
-        e("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"center",gap:10}},
-          e("div",{style:{fontSize:26,fontWeight:900,color:fondoCassa>=0?C.gD:C.rd}},"\u20AC"+fm(fondoCassa)),
-          fcTrend!=null?e("div",{style:{fontSize:13,fontWeight:900,color:fcTrend>=0?C.gn:C.rd}},(fcTrend>=0?"\u25B2 +":"\u25BC \u2212")+"\u20AC"+fm(Math.abs(fcTrend))):null
+        e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:900,padding:"7px 0",color:C.aD}},
+          e("span",null,"ANCORA DA PAGARE"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(usciraTot))
         ),
-        e("div",{style:{fontSize:11,color:C.mu,textAlign:"center",marginTop:2}},"il materasso di oggi: quello che c'era PRIMA dello stipendio"+(fcTrend!=null?" \u00b7 rispetto al ciclo scorso":"")),
-        // Proiezione al prossimo accredito
-        crescitaPrev!=null?e("div",{style:{background:crescitaPrev>=0?C.gL:C.rL,borderRadius:12,padding:"12px 12px",marginTop:12}},
-          e("div",{style:{fontSize:12,fontWeight:900,color:C.gD,marginBottom:6}},"\u{1F4C8} Al prossimo accredito ("+ci.fL+")",H("fcCrescita")),
-          e("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"center",gap:8}},
-            e("div",{style:{fontSize:22,fontWeight:900,color:crescitaPrev>=0?C.gn:C.rd}},"\u20AC"+fm(fcProiettato)),
-            e("div",{style:{fontSize:14,fontWeight:900,color:crescitaPrev>=0?C.gn:C.rd}},(crescitaPrev>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(crescitaPrev)))
-          ),
-          e("div",{style:{fontSize:11,color:C.mu,textAlign:"center",marginTop:4}},"al ritmo di spesa attuale: \u20AC"+fm(mediaGG)+" al giorno"),
-          e("div",{style:{fontSize:11,color:C.gD,marginTop:8,lineHeight:1.6,borderTop:"1px solid "+C.ln,paddingTop:8}},
-            e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u{1F416} gi\u00e0 messo via con la tassa"),e("span",{style:{fontWeight:800,fontFamily:"monospace"}},"\u20AC"+fm(salvCiclo))),
-            e("div",{style:{display:"flex",justifyContent:"space-between"}},e("span",null,"\u{1F4B0} stipendio che avanza"),e("span",{style:{fontWeight:800,fontFamily:"monospace",color:crescitaAvanzo>=0?C.gD:C.rd}},(crescitaAvanzo>=0?"":"\u2212")+"\u20AC"+fm(Math.abs(crescitaAvanzo))))
-          ),
-          (fcTargetOn&&fcTarget>0)?e("div",{style:{marginTop:10,borderTop:"1px solid "+C.ln,paddingTop:8}},
-            e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:11,fontWeight:800,color:fcTargetOk?C.gn:C.aD,marginBottom:4}},
-              e("span",null,"\u{1F3AF} Obiettivo +\u20AC"+f0(fcTarget)),
-              e("span",null,fcTargetOk?"\u2705 in rotta":"mancano \u20AC"+fm(Math.max(0,fcTarget-crescitaPrev)))
-            ),
-            e("div",{style:{background:C.ln,borderRadius:8,height:8,overflow:"hidden"}},
-              e("div",{style:{width:Math.max(0,Math.min(100,fcTarget>0?crescitaPrev/fcTarget*100:0))+"%",height:"100%",background:fcTargetOk?C.gn:C.gd,borderRadius:8}})
-            ),
-            (!fcTargetOk&&fcMancaGG>0)?e("div",{style:{fontSize:10,color:C.mu,marginTop:4,fontStyle:"italic"}},"Per arrivarci: \u20AC"+fm(fcMancaGG)+" al giorno in meno di spesa nei "+ci.gR+" giorni che restano."):null
-          ):null
+        (risparmioSulConto>0.004||accAnnTot>0.004)?e("div",{style:{borderTop:"1.5px solid "+C.ln,paddingTop:8,marginTop:2}},
+          e("div",{style:{fontSize:10,fontWeight:800,color:C.mu,marginBottom:4,letterSpacing:.5}},"RESTANO SUL CONTO MA NON SONO TUOI"),
+          risparmioSulConto>0.004?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}},
+            e("span",{style:{color:C.gD}},"\u{1F416} Salvadanai (tassa + fisse)",H("contoRisparmio")),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd}},"\u20AC"+fm(risparmioSulConto))
+          ):null,
+          accAnnTot>0.004?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0"}},
+            e("span",{style:{color:C.gD}},"\u{1F5D3}\uFE0F Accantonati per le annuali",H("annuali")),
+            e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.pu}},"\u20AC"+fm(accAnnTot))
+          ):null,
+          accAnnTot>0.004?e("div",{style:{fontSize:9,color:C.mu}},annuali.filter(function(a){return(a.acc||0)>0.004;}).map(function(a){return a.icon+" "+a.nome+" \u20AC"+fm(a.acc);}).join(" \u00b7 ")):null
         ):null,
-        (contoStorico&&contoStorico.length>0)?e("div",{style:{marginTop:10,borderTop:"1px solid "+C.ln,paddingTop:8}},
-          contoStorico.slice().sort(function(a,b){return b.c-a.c;}).map(function(r){
-            var dR=new Date(r.c);
-            return e("div",{key:r.c,style:{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",fontWeight:r.c===ci.iniTs?800:500,color:r.c===ci.iniTs?C.gD:C.mu}},
-              e("span",null,"ciclo dal "+dR.getDate()+" "+MESI[dR.getMonth()].slice(0,3)+(r.c===ci.iniTs?" (attuale)":"")),
-              e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(r.f))
+        e("button",{onClick:function(){setShowPag(true);},style:{width:"100%",marginTop:10,padding:11,borderRadius:10,border:"1.5px solid "+C.nv,background:"#fff",color:C.nv,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u{1F4B3} Gi\u00e0 pagate o da pagare")
+      ):null,
+
+      // ================== BLOCCO 4: FONDO CASSA + configurazione richiudibile ==================
+      contoAttivo?e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
+        e("div",{style:{fontSize:13,fontWeight:900,color:C.gD,marginBottom:8}},"\u{1F9F1} Fondo cassa: il materasso",H("fondoCassa")),
+        e("div",{style:{textAlign:"center",marginBottom:6}},
+          e("div",{style:{display:"flex",alignItems:"baseline",justifyContent:"center",gap:10}},
+            e("div",{style:{fontSize:26,fontWeight:900,color:fcNetto>=0?C.gD:C.rd}},"\u20AC"+fm(fcNetto)),
+            fcTrend!=null?e("div",{style:{fontSize:13,fontWeight:900,color:fcTrend>=0?C.gn:C.rd}},(fcTrend>=0?"\u25B2 +":"\u25BC \u2212")+"\u20AC"+fm(Math.abs(fcTrend))):null
+          ),
+          accAnnTot>0.004?e("div",{style:{fontSize:10,color:C.mu,marginTop:2}},"sul conto: \u20AC"+fm(fondoCassa)+" \u2212 \u20AC"+fm(accAnnTot)+" promessi alle annuali"):e("div",{style:{fontSize:10,color:C.mu,marginTop:2}},"quello che c'era PRIMA dello stipendio"+(fcTrend!=null?" \u00b7 rispetto al ciclo scorso":""))
+        ),
+        (fcProiettato!=null&&contoOggi>0)?e("div",{style:{fontSize:11,color:C.mu,textAlign:"center",marginBottom:4}},"proiezione al "+ci.fL+": materasso \u20AC"+fm(fcNettoProi)+" (spendi \u20AC"+fm(mediaGG)+"/giorno)"):null,
+        e("button",{onClick:function(){setShowCfg(!showCfg);},style:{width:"100%",marginTop:6,padding:9,borderRadius:10,border:"1px dashed "+C.ln,background:"none",color:C.mu,fontWeight:700,fontSize:12,cursor:"pointer"}},showCfg?"\u25B2 nascondi partenza e storico":"\u2699\uFE0F partenza, letture e storico"),
+        showCfg?e("div",{style:{marginTop:10,borderTop:"1px solid "+C.ln,paddingTop:10}},
+          e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginBottom:6}},"\u{1F4CD} Saldo di partenza del ciclo",H("contoPartenza")),
+          e("div",{style:{display:"flex",gap:6,marginBottom:8}},
+            [{v:"paga",l:"\u{1F4C5} Saldo del "+ci.iL},{v:"oggi",l:"\u23F0 Saldo di oggi"}].map(function(o){
+              return e("button",{key:o.v,onClick:function(){setContoIniModo(o.v);if(contoIniRaw>0)setContoPartenza(contoIniRaw,o.v);},style:{flex:1,padding:"8px 4px",borderRadius:10,border:"2px solid "+(contoIniModo===o.v?C.gd:C.ln),background:contoIniModo===o.v?C.gL:"#fff",fontWeight:contoIniModo===o.v?900:600,fontSize:11,cursor:"pointer",color:contoIniModo===o.v?C.gn:C.mu}},o.l);
+            })
+          ),
+          e("input",{type:"number",inputMode:"decimal",value:contoIniRaw===0?"":contoIniRaw,placeholder:"\u20AC saldo di partenza",onChange:function(ev){setContoPartenza(parseFloat(ev.target.value)||0,contoIniModo);},style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginBottom:4}}),
+          contoIniModo==="oggi"&&contoIni>0?e("div",{style:{fontSize:10,color:C.mu,fontStyle:"italic",marginBottom:6}},"ricostruito: il "+ci.iL+" c'erano \u20AC"+fm(contoIni)):null,
+          e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginTop:8,marginBottom:4}},"\u{1F4CC} Letture salvate",H("contoPrevisione")),
+          (contoLetture&&contoLetture.length>0)?contoLetture.slice().sort(function(a,b){return keyD(b.d)-keyD(a.d);}).slice(0,6).map(function(r){
+            return e("div",{key:r.d,style:{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",fontFamily:"monospace",color:C.mu}},
+              e("span",null,r.d),e("span",null,"\u20AC"+fm(r.v))
             );
-          })
+          }):e("div",{style:{fontSize:11,color:C.mu,fontStyle:"italic"}},"nessuna: usa \u{1F4CC} Salva quando aggiorni il saldo"),
+          (contoStorico&&contoStorico.length>0)?e("div",{style:{marginTop:8}},
+            e("div",{style:{fontSize:12,fontWeight:800,color:C.gD,marginBottom:4}},"\u{1F9F1} Storia del fondo cassa",H("fcCrescita")),
+            contoStorico.slice().sort(function(a,b){return b.c-a.c;}).map(function(r){
+              var dR=new Date(r.c);
+              return e("div",{key:r.c,style:{display:"flex",justifyContent:"space-between",fontSize:12,padding:"3px 0",fontFamily:"monospace",color:C.mu}},
+                e("span",null,"ciclo dal "+dR.getDate()+" "+MESI[dR.getMonth()].slice(0,3)+(r.c===ci.iniTs?" (attuale)":"")),
+                e("span",null,"\u20AC"+fm(r.f))
+              );
+            })
+          ):null
         ):null
       ):null
     ):null,
@@ -2444,9 +2633,71 @@ function App(){
           e("button",{onClick:function(){setModal({em:"\u{1F6A8}",tit:"RESET TOTALE?",msg:"Spese azzerate, voci fisse di fabbrica e scheda Conto azzerata, anche sull'altro telefono. Da usare solo per ripartire da zero.",buttons:[{lbl:"\u{1F6A8} S\u00ec, resetta tutto",danger:true,fn:function(){setDelIds(delIds.concat(spV.map(function(x){return x.id;})).slice(-300));setSpV([]);setSf(SF0);setSyncNum(0);setContoIni(0);setContoIniRaw(0);setContoIniData("");setContoIniCiclo(0);setContoOggi(0);setContoOggiData("");setContoExtra(0);}},{lbl:"Annulla"}]});},style:{background:C.mu,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset tutto")
         )
       ),
-      e("div",{style:{textAlign:"center",fontSize:10,color:C.mu,marginBottom:12}},"Budget Famiglia v17 \u00b7 riconciliazione e previsione conto \u00b7 fondo cassa proiettato \u00b7 rettifica scarti \u00b7 aiuti (i) \u00b7 spese retrodatate \u00b7 backup")
+      e("div",{style:{textAlign:"center",fontSize:10,color:C.mu,marginBottom:12}},"Budget Famiglia v18 \u00b7 abbonamenti a uscita automatica \u00b7 annuali con quote autoaggiustanti \u00b7 fondo cassa netto \u00b7 riconciliazione conto \u00b7 aiuti (i) \u00b7 backup")
     ):null,
     // ===== v16: FINESTRA INTERNA (funziona anche dove i popup di sistema sono bloccati) =====
+    showRacc?e("div",{onClick:function(){setShowRacc(false);},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:900}},
+      e("div",{onClick:function(ev){ev.stopPropagation();},style:{background:"#fff",borderRadius:"18px 18px 0 0",padding:"18px 16px 24px",width:"100%",maxWidth:520,maxHeight:"88vh",overflowY:"auto",boxShadow:"0 -6px 30px rgba(0,0,0,.3)"}},
+        e("div",{style:{display:"flex",alignItems:"center",marginBottom:12}},
+          e("div",{style:{fontSize:16,fontWeight:900,color:C.gD,flex:1}},"\u{1F4D6} Il racconto dei tuoi soldi"),
+          e("button",{onClick:function(){setShowRacc(false);},style:{background:"none",border:"none",fontSize:22,cursor:"pointer",color:C.mu,lineHeight:1}},"\u00d7")
+        ),
+        // 1 - la partenza
+        e("div",{style:{background:C.gL,borderRadius:12,padding:"12px 14px",marginBottom:10}},
+          e("div",{style:{fontSize:11,fontWeight:900,color:C.gn,letterSpacing:.5,marginBottom:6}},"\u2460 IL GIORNO DELLA PAGA \u00b7 "+ci.iL),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:14,fontWeight:900,color:C.gD}},e("span",null,"Sul conto avevi"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(contoIni))),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,color:C.mu,marginTop:6}},e("span",null,"\u251C stipendio appena arrivato"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(stip))),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:12,color:C.mu,fontWeight:800}},e("span",null,"\u2514 fondo cassa, gi\u00e0 tuo"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(fondoCassa))),
+          (rispVecchio>0.004||accAnnTot>0.004)?e("div",{style:{fontSize:10,color:C.mu,fontStyle:"italic",marginTop:6,lineHeight:1.5}},"Dentro il fondo cassa "+(rispVecchio>0.004?("ci sono gi\u00e0 \u20AC"+fm(rispVecchio)+" di salvadanaio dei mesi scorsi"):"")+(rispVecchio>0.004&&accAnnTot>0.004?" e ":accAnnTot>0.004?"ci sono ":"")+(accAnnTot>0.004?("\u20AC"+fm(accAnnTot)+" accantonati per le spese annuali (non sono tuoi)"):"")+": erano sul conto prima di questo stipendio."):null
+        ),
+        // 2 - quello che e' gia' uscito
+        e("div",{style:{background:C.cd,borderRadius:12,padding:"12px 14px",marginBottom:10}},
+          e("div",{style:{fontSize:11,fontWeight:900,color:C.rd,letterSpacing:.5,marginBottom:6}},"\u2461 QUELLO CHE \u00c8 GI\u00c0 USCITO"),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Spese fisse gi\u00e0 pagate"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd}},"\u2212\u20AC"+fm(usciteFisseReali))),
+          e("div",{style:{fontSize:10,color:C.mu,marginBottom:4}},righeUscite.length>0?righeUscite.map(function(r){return r.s.nome;}).join(" \u00b7 "):"nessuna ancora"),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Spese variabili ("+nVarReali+")"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.rd}},"\u2212\u20AC"+fm(usciteVarReali))),
+          Math.abs(contoExtra)>0.004?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Movimenti fuori app"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:contoExtra>=0?C.gn:C.rd}},(contoExtra>=0?"+":"\u2212")+"\u20AC"+fm(Math.abs(contoExtra)))):null,
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:800,borderTop:"1px solid "+C.ln,marginTop:6,paddingTop:6}},e("span",null,"Dovresti leggere"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(saldoAtteso))),
+          contoOggi>0?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:800}},e("span",null,"Leggi in banca"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(contoOggi))):null,
+          (contoOggi>0&&Math.abs(deltaConto)>2)?e("div",{style:{background:deltaConto<0?C.rL:C.bL,borderRadius:8,padding:"7px 9px",marginTop:6,fontSize:11,fontWeight:700,color:deltaConto<0?C.rd:C.bl,lineHeight:1.5}},
+            (deltaConto<0?"\u26A0\uFE0F Mancano \u20AC"+fm(-deltaConto)+" all'appello: una spesa non registrata. Finch\u00e9 non la sistemi, i numeri qui sotto la contano come gi\u00e0 persa.":"\u{1F914} Ci sono \u20AC"+fm(deltaConto)+" in pi\u00f9: un'entrata non registrata.")):null
+        ),
+        // 3 - quello che devi ancora togliere
+        e("div",{style:{background:C.cd,borderRadius:12,padding:"12px 14px",marginBottom:10}},
+          e("div",{style:{fontSize:11,fontWeight:900,color:C.aD,letterSpacing:.5,marginBottom:6}},"\u2462 QUELLO CHE DEVI ANCORA TOGLIERE"),
+          e("div",{style:{fontSize:10,color:C.mu,marginBottom:6,lineHeight:1.5}},"Sono soldi che vedi in banca ma non puoi spendere: alcuni usciranno, altri sono risparmio."),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Spese fisse da pagare"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.aD}},"\u2212\u20AC"+fm(usciraTot))),
+          e("div",{style:{fontSize:10,color:C.mu,marginBottom:4}},prenotatoLista.length>0?prenotatoLista.map(function(x){return x.s.nome;}).join(" \u00b7 "):"nessuna in sospeso"),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Risparmi di questo mese"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd}},"\u2212\u20AC"+fm(rispCiclo))),
+          rispVecchio>0.004?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Risparmi dei mesi scorsi"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.gd}},"\u2212\u20AC"+fm(rispVecchio))):null,
+          accAnnTot>0.004?e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Accantonati per le annuali"),e("span",{style:{fontFamily:"monospace",fontWeight:800,color:C.pu}},"\u2212\u20AC"+fm(accAnnTot))):null,
+          accAnnTot>0.004?e("div",{style:{fontSize:10,color:C.mu,marginBottom:4}},annuali.filter(function(a){return(a.acc||0)>0.004;}).map(function(a){return a.icon+" "+a.nome;}).join(" \u00b7 ")):null,
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:900,borderTop:"1.5px solid "+C.ln,marginTop:8,paddingTop:8,color:C.gD}},e("span",null,"TI RESTANO"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(liberoVero)))
+        ),
+        // 4 - cosa significa
+        e("div",{style:{background:C.bL,borderRadius:12,padding:"12px 14px",marginBottom:10}},
+          e("div",{style:{fontSize:11,fontWeight:900,color:C.bl,letterSpacing:.5,marginBottom:6}},"\u2463 COSA SIGNIFICA"),
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:13}},e("span",null,"Fondo cassa da non toccare"),e("span",{style:{fontFamily:"monospace",fontWeight:800}},"\u20AC"+fm(fcNetto))),
+          accAnnTot>0.004?e("div",{style:{fontSize:10,color:C.mu,marginBottom:2}},"(\u20AC"+fm(fondoCassa)+" sul conto quel giorno \u2212 \u20AC"+fm(accAnnTot)+" gi\u00e0 promessi alle annuali)"):null,
+          e("div",{style:{display:"flex",justifyContent:"space-between",fontSize:15,fontWeight:900,marginTop:4,color:stipLibero>=0?C.gn:C.rd}},e("span",null,stipLibero>=0?"Liberi dello stipendio":"Hai gi\u00e0 intaccato il materasso"),e("span",{style:{fontFamily:"monospace"}},"\u20AC"+fm(stipLibero))),
+          e("div",{style:{fontSize:11,color:C.mu,marginTop:6,lineHeight:1.5}},stipLibero>=0?("Questo \u00e8 quanto puoi ancora spendere da qui al "+ci.fL+" lasciando il fondo cassa intatto: \u20AC"+fm(ci.gR>0?stipLibero/ci.gR:stipLibero)+" al giorno per i "+ci.gR+" giorni che restano."):("Per arrivare al "+ci.fL+" senza intaccare il fondo cassa dovresti rimettere \u20AC"+fm(-stipLibero)+"."))
+        ),
+        // 5 - il verdetto
+        crescitaPrev!=null?e("div",{style:{background:crescitaPrev>=0?C.gL:C.rL,borderRadius:12,padding:"14px",border:"2px solid "+(crescitaPrev>=0?C.gn:C.rd)+"55"}},
+          e("div",{style:{fontSize:11,fontWeight:900,color:crescitaPrev>=0?C.gn:C.rd,letterSpacing:.5,marginBottom:6}},"\u2464 IL VERDETTO"),
+          e("div",{style:{fontSize:30,textAlign:"center",lineHeight:1.1}},crescitaPrev>=0?"\u{1F4C8}":"\u26A0\uFE0F"),
+          e("div",{style:{fontSize:15,fontWeight:900,textAlign:"center",color:crescitaPrev>=0?C.gn:C.rd,marginTop:4}},crescitaPrev>=0?"SEI SOPRA IL PREVISTO":"SEI SOTTO IL PREVISTO"),
+          e("div",{style:{fontSize:12,color:C.gD,marginTop:8,lineHeight:1.6,textAlign:"center"}},
+            crescitaPrev>=0?
+              ["Al ritmo di \u20AC"+fm(mediaGG)+" al giorno, alla prossima paga ("+ci.fL+") sul conto resteranno \u20AC"+fm(fcProiettato)+(quoteMeseTot>0.004?", di cui \u20AC"+fm(accAnnTot+quoteMeseTot)+" promessi alle annuali":"")+". Il materasso vero passa da \u20AC"+fm(fcNetto)+" a \u20AC"+fm(fcNettoProi)+": ",e("b",{key:"b1"},"+\u20AC"+fm(crescitaPrev)+" di materasso in pi\u00f9"),"."]:
+              ["Al ritmo di \u20AC"+fm(mediaGG)+" al giorno arriveresti al "+ci.fL+" con un materasso vero di \u20AC"+fm(fcNettoProi)+" invece di \u20AC"+fm(fcNetto)+", cio\u00e8 ",e("b",{key:"b2"},"\u20AC"+fm(-crescitaPrev)+" in meno di fondo cassa"),". Per non intaccarlo devi togliere ",e("b",{key:"b3"},"\u20AC"+fm(ci.gR>0?(-crescitaPrev)/ci.gR:-crescitaPrev)+" al giorno"),(ci.gR>0?(" dal budget dei "+ci.gR+" giorni che restano: da \u20AC"+fm(bOggi)+" a \u20AC"+fm(Math.max(0,bOggi-((-crescitaPrev)/ci.gR)))+"."):".")]
+          ),
+          (fcTargetOn&&fcTarget>0)?e("div",{style:{fontSize:11,fontWeight:800,color:fcTargetOk?C.gn:C.aD,marginTop:8,textAlign:"center",borderTop:"1px solid "+C.ln,paddingTop:8}},
+            fcTargetOk?("\u{1F3AF} Obiettivo +\u20AC"+f0(fcTarget)+" raggiunto"):("\u{1F3AF} Obiettivo +\u20AC"+f0(fcTarget)+": mancano \u20AC"+fm(Math.max(0,fcTarget-crescitaPrev)))):null
+        ):e("div",{style:{background:C.aL,borderRadius:12,padding:"12px 14px",fontSize:12,color:C.aD,fontWeight:600}},"Scrivi il saldo che leggi in banca per avere il verdetto sul fondo cassa."),
+        e("button",{onClick:function(){setShowRacc(false);},style:{width:"100%",marginTop:14,padding:12,borderRadius:10,border:"none",background:C.gn,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"Ho capito")
+      )
+    ):null,
     showPag?e("div",{onClick:function(){setShowPag(false);},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:900}},
       e("div",{onClick:function(ev){ev.stopPropagation();},style:{background:"#fff",borderRadius:"18px 18px 0 0",padding:"18px 16px 24px",width:"100%",maxWidth:520,maxHeight:"85vh",overflowY:"auto",boxShadow:"0 -6px 30px rgba(0,0,0,.3)"}},
         e("div",{style:{display:"flex",alignItems:"center",marginBottom:4}},
@@ -2464,17 +2715,20 @@ function App(){
         ),
         sf.map(function(s){
           var acc=accOf(s),conf=s.confVal!=null;
-          var pagata=s.blind?!!s.pagato:conf;
+          var pagata=s.blind?uscitaAbb(s):conf;
           return e("div",{key:s.id,style:{display:"flex",alignItems:"center",gap:8,padding:"9px 0",borderBottom:"1px solid "+C.ln}},
             e("span",{style:{fontSize:19}},s.icon),
             e("span",{style:{flex:1,minWidth:0}},
               e("div",{style:{fontSize:13,fontWeight:700,color:C.gD}},s.nome,s.gg?e("span",{style:{fontSize:9,color:C.mu,marginLeft:5}},"\u{1F4C5} "+lblAddebito(s)):null),
               e("div",{style:{fontSize:10,color:pagata?C.gn:C.mu}},
-                s.blind?(pagata?("\u2713 uscita: \u20AC"+fm(s.prev)):("da pagare: \u20AC"+fm(s.prev))):
+                s.blind?((pagata?("\u2713 uscita: \u20AC"+fm(s.prev)):("da pagare: \u20AC"+fm(s.prev)))+(s.gg?(" \u00b7 "+(pagata?"il ":"esce il ")+lblAddebito(s)):"")):
                   (conf?("\u2713 confermata a \u20AC"+fm(s.confVal)):(acc>0.004?("acconti \u20AC"+fm(acc)+" su \u20AC"+f0(s.prev)):("previsti \u20AC"+f0(s.prev)))))
             ),
-            s.blind?e("button",{onClick:function(){setSf(function(prev){return prev.map(function(y){return y.id===s.id?Object.assign({},y,{pagato:!y.pagato,pagatoTs:!y.pagato?Date.now():null}):y;});});},
-              style:{background:pagata?C.gL:"#fff",color:pagata?C.gn:C.mu,border:"1.5px solid "+(pagata?C.gn:C.ln),borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},pagata?"\u2713 Pagata":"\u25CB Da pagare"):
+            s.blind?e("button",{onClick:function(){
+              if(s.gg){var ora=uscitaAbb(s);setSf(function(prev){return prev.map(function(y){return y.id===s.id?Object.assign({},y,{pagOvr:!ora}):y;});});}
+              else{setSf(function(prev){return prev.map(function(y){return y.id===s.id?Object.assign({},y,{pagato:!y.pagato,pagatoTs:!y.pagato?Date.now():null}):y;});});}
+            },
+              style:{background:pagata?C.gL:"#fff",color:pagata?C.gn:C.mu,border:"1.5px solid "+(pagata?C.gn:C.ln),borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},pagata?(uscitaAuto(s)?"\u2713 Uscita (auto)":"\u2713 Uscita"):"\u25CB Da pagare"):
               (conf?e("button",{onClick:function(){annullaConferma(s);},style:{background:C.gL,color:C.gn,border:"1.5px solid "+C.gn,borderRadius:9,padding:"7px 11px",fontSize:11,fontWeight:800,cursor:"pointer",whiteSpace:"nowrap"}},"\u2713 Riapri"):
                 e("button",{onClick:function(){
                   setModal({em:"\u2705",tit:"Segnare "+s.nome+" come pagata?",
