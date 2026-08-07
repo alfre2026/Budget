@@ -389,6 +389,7 @@ var HELP={
   annuali:{em:"\u{1F5D3}\uFE0F",tit:"Annuali e semestrali",msg:"Spese che arrivano una volta ogni tanto ma vanno preparate ogni mese. Con la scadenza: l'app divide il residuo per i mesi che mancano \u2014 se un mese non riesci ad accantonare, la quota si ridistribuisce da sola su quelli che restano, e arrivi puntuale comunque. Senza scadenza (fondo continuo, es. usura auto): accumuli una quota fissa e prelevi quando serve. I soldi accantonati restano sul conto ma NON sono tuoi: la scheda Conto li tiene separati. Esempio: assicurazione \u20AC350 a gennaio, da luglio sono \u20AC58,33 al mese; se luglio va male, da agosto diventano \u20AC70."},
   fcCrescita:{em:"\u{1F4C8}",tit:"Come cresce il fondo cassa",msg:"Il materasso si consolida al prossimo accredito: quello che avanza sul conto quel giorno diventa il nuovo fondo cassa. Cresce in due modi: con la tassa di risparmio messa via sera dopo sera, E con la parte di stipendio che semplicemente non spendi. L'app proietta il valore finale al ritmo di spesa che stai tenendo. Esempio: fondo cassa \u20AC2.000, ritmo attuale \u20AC10 al giorno \u2192 al prossimo accredito \u20AC2.130, di cui \u20AC39 di tassa e \u20AC91 di stipendio avanzato."},
   contoLibero:{em:"\u{1F4B5}",tit:"Veramente libero",msg:"Il saldo in banca dice una bugia: dentro ci sono i soldi che devono ancora uscire E quelli gi\u00e0 diventati risparmio. Qui vedi quanto \u00e8 davvero tuo da spendere: saldo letto \u2212 quello che uscir\u00e0 \u2212 i salvadanai. Esempio: \u20AC2.840 in banca \u2212 \u20AC560 che usciranno \u2212 \u20AC187 di salvadanai = \u20AC2.093 veri."},
+  distribuisci:{em:"\u21A9\uFE0F",tit:"Distribuisci al budget",msg:"I soldi del salvadanaio sono tuoi: se ti servono per un imprevisto, non serve romperlo per forza su una spesa precisa. 'Distribuisci al budget' li rimette in circolo, spalmati in parti uguali su oggi e sui giorni che restano fino alla prossima paga \u2014 il salvadanaio scende, il budget di ogni giorno sale un poco. Diverso da 'Rompi per comprare': quello registra una spesa precisa e non tocca il budget quotidiano; questo invece alza il budget e lascia a te decidere come spenderlo. Esempio: \u20AC50 restituiti con 10 giorni rimanenti = +\u20AC5 al giorno."},
   fondoCassa:{em:"\u{1F3DB}\uFE0F",tit:"Fondo cassa",msg:"\u00c8 quello che c'era sul conto PRIMA che arrivasse lo stipendio: saldo del giorno paga meno lo stipendio. Cresce in due modi, ed \u00e8 sempre lo stesso denaro: la tassa di risparmio che accumuli giorno per giorno, e quello che non spendi dello stipendio quando il ciclo si chiude. Per questo il salvadanaio dei mesi scorsi \u00e8 gi\u00e0 dentro questo numero e non va tolto una seconda volta. Gli unici soldi che ne tolgo sono gli accantonati per le spese annuali, perch\u00e9 quelli dal conto usciranno davvero. \u00c8 il materasso: quello che c'era sul conto PRIMA che arrivasse lo stipendio (partenza \u2212 stipendio). Non si tocca durante il ciclo: si aggiorna al prossimo accredito, quando quello che \u00e8 avanzato diventa il nuovo materasso. Esempio: partenza \u20AC3.850 \u2212 stipendio \u20AC1.850 = fondo cassa \u20AC2.000."},
   contoPartenzaModo:{em:"\u{1F4CD}",tit:"Quale saldo stai scrivendo?",msg:"SALDO DI OGGI: scrivi quello che leggi adesso e l'app ricostruisce la partenza risommando le uscite gi\u00e0 registrate nei giorni passati \u2014 comodo se ti ricordi in ritardo. SALDO DEL GIORNO PAGA: scrivi il numero esatto che c'era in banca il giorno dell'accredito, senza ricostruzioni \u2014 preciso, se hai l'estratto conto sotto mano. Esempio: il giorno paga avevi \u20AC3.850 \u2192 scegli la seconda e scrivi 3850."}
 };
@@ -537,6 +538,9 @@ function App(){
   var _carry=us(0),carry=_carry[0],setCarry=_carry[1];
   var _lastDay=us(localStorage.getItem("last-day")||""),lastDay=_lastDay[0],setLastDay=_lastDay[1];
   var _rompiOpen=us(false),rompiOpen=_rompiOpen[0],setRompiOpen=_rompiOpen[1];
+  var _restC=us(0),restCiclo=_restC[0],setRestCiclo=_restC[1];   // soldi ridati al budget QUESTO ciclo (si azzera a ogni ciclo)
+  var _distOpen=us(false),distOpen=_distOpen[0],setDistOpen=_distOpen[1];
+  var _distImp=us(0),distImp=_distImp[0],setDistImp=_distImp[1];
   var _rompiDesc=us(""),rompiDesc=_rompiDesc[0],setRompiDesc=_rompiDesc[1];
   var _rompiImp=us(0),rompiImp=_rompiImp[0],setRompiImp=_rompiImp[1];
   // ===== v16: strategie comportamentali =====
@@ -670,6 +674,7 @@ function App(){
       if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);
       if(d.pctR!==undefined)setPctR(d.pctR);if(d.syncNum)setSyncNum(d.syncNum);
       if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);if(d.carry!==undefined)setCarry(d.carry);if(d.cfgMod!==undefined)setCfgMod(d.cfgMod);if(d.salvMod!==undefined)setSalvMod(d.salvMod);if(d.delIds)setDelIds(d.delIds);
+      if(d.restCiclo!==undefined)setRestCiclo(d.restCiclo);
       if(d.goals)setGoals(d.goals);if(d.catsX)setCatsX(d.catsX);if(d.monSel)setMonSel(d.monSel);if(d.evitati!==undefined)setEvitati(d.evitati);if(d.roundTot!==undefined)setRoundTot(d.roundTot);if(d.roundUp!==undefined)setRoundUp(d.roundUp);if(d.streak!==undefined)setStreak(d.streak);if(d.bestStreak!==undefined)setBestStreak(d.bestStreak);
       if(d.contoIni!==undefined)setContoIni(d.contoIni);if(d.contoIniRaw!==undefined)setContoIniRaw(d.contoIniRaw);if(d.contoIniData!==undefined)setContoIniData(d.contoIniData);if(d.contoIniCiclo!==undefined)setContoIniCiclo(d.contoIniCiclo);
       if(d.contoOggi!==undefined)setContoOggi(d.contoOggi);if(d.contoOggiData!==undefined)setContoOggiData(d.contoOggiData);if(d.contoExtra!==undefined)setContoExtra(d.contoExtra);if(d.contoStorico)setContoStorico(d.contoStorico);
@@ -704,12 +709,12 @@ function App(){
   },[]);
 
   // Save locale
-  ue(function(){if(ok)saveLS({stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali,alimOn:alimOn,alimSett:alimSett,alimGiorno:alimGiorno,alimTetto:alimTetto,alimBimba:alimBimba,fcMinOn:fcMinOn,fcMin:fcMin});},[stip,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,goals,evitati,roundTot,roundUp,streak,bestStreak,catsX,monSel,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,alimOn,alimSett,alimGiorno,alimTetto,alimBimba,fcMinOn,fcMin,ok]);
+  ue(function(){if(ok)saveLS({stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,syncNum:syncNum,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,carry:carry,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali,alimOn:alimOn,alimSett:alimSett,alimGiorno:alimGiorno,alimTetto:alimTetto,alimBimba:alimBimba,fcMinOn:fcMinOn,fcMin:fcMin,restCiclo:restCiclo});},[stip,gPaga,sf,spV,pctR,syncNum,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,carry,cfgMod,salvMod,delIds,goals,evitati,roundTot,roundUp,streak,bestStreak,catsX,monSel,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,alimOn,alimSett,alimGiorno,alimTetto,alimBimba,fcMinOn,fcMin,restCiclo,ok]);
   // Orologio impostazioni: avanza solo per modifiche fatte QUI (non quando applico il remoto)
   ue(function(){
     if(!ok)return;if(applyRef.current)return;
     setCfgMod(function(){return Math.max(Date.now(),cfgModRef.current+1);});
-  },[stip,gPaga,sf,pctR,tassa,roundUp,catsX,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,alimOn,alimSett,alimGiorno,alimTetto,alimBimba,fcMinOn,fcMin]);
+  },[stip,gPaga,sf,pctR,tassa,roundUp,catsX,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,alimOn,alimSett,alimGiorno,alimTetto,alimBimba,fcMinOn,fcMin,restCiclo]);
   // Orologio salvadanaio: avanza per chiusure/modifiche locali
   ue(function(){
     if(!ok)return;if(applyRef.current)return;
@@ -719,13 +724,13 @@ function App(){
   ue(function(){
     if(!ok||!jbReady)return;
     var t=setTimeout(function(){
-      var payload={ver:2,stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali,alimOn:alimOn,alimSett:alimSett,alimGiorno:alimGiorno,alimTetto:alimTetto,alimBimba:alimBimba,fcMinOn:fcMinOn,fcMin:fcMin};
+      var payload={ver:2,stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,cfgMod:cfgMod,salvMod:salvMod,delIds:delIds,catsX:catsX,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali,alimOn:alimOn,alimSett:alimSett,alimGiorno:alimGiorno,alimTetto:alimTetto,alimBimba:alimBimba,fcMinOn:fcMinOn,fcMin:fcMin,restCiclo:restCiclo};
       jbWrite(payload,function(okW){
         if(!okW){setOnline(false);setTimeout(function(){jbWrite(payload);},5000);} // riprova una volta dopo 5s
       });
     },800);
     return function(){clearTimeout(t);};
-  },[stip,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,catsX,goals,evitati,roundTot,roundUp,streak,bestStreak,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,alimOn,alimSett,alimGiorno,alimTetto,alimBimba,fcMinOn,fcMin,ok,jbReady]);
+  },[stip,gPaga,sf,spV,pctR,tassa,salvRisp,salvCiclo,salvCicloIni,salvGiorni,persiGiorni,cfgMod,salvMod,delIds,catsX,goals,evitati,roundTot,roundUp,streak,bestStreak,contoIni,contoIniRaw,contoIniData,contoIniCiclo,contoOggi,contoOggiData,contoExtra,contoStorico,contoIniModo,contoLetture,fcTargetOn,fcTarget,annuali,alimOn,alimSett,alimGiorno,alimTetto,alimBimba,fcMinOn,fcMin,restCiclo,ok,jbReady]);
   // Leggi ONLINE: subito, ogni 8 secondi, e appena l'app torna in primo piano
   ue(function(){
     if(!jbReady)return;
@@ -766,6 +771,7 @@ function App(){
         var rs=d.salvMod||0;
         if(rs>salvModRef.current){
           if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);
+          if(d.restCiclo!==undefined)setRestCiclo(d.restCiclo);
           if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);
           if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);
           if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);
@@ -943,7 +949,7 @@ function App(){
   var spesoCiclo=spesoPrima+tOggi;   // speso che conta dal punto di partenza, incluso oggi
   var tExtra=spVar.reduce(function(a,x){return a+x.imp;},0); // totale variabile del ciclo (statistiche)
   // Residuo a INIZIO giornata (prima delle spese di oggi) e residuo LIVE (aggiornato ad ogni spesa di oggi)
-  var residInizioOggi=dispoVar-spesoPrima-salvCiclo;
+  var residInizioOggi=dispoVar-spesoPrima-salvCiclo+restCiclo;
   var residLive=residInizioOggi-tOggi;
   var rim=residLive;
   // Giorni per la divisione = giorni rimanenti INCLUSA oggi (gR conta i giorni DOPO oggi, quindi +1)
@@ -1362,7 +1368,7 @@ function App(){
           },1800);
         }
       }
-      setSalvCiclo(0);setSalvGiorni(0);setPersiGiorni(0);setSalvCicloIni(ci.iniTs);
+      setSalvCiclo(0);setSalvGiorni(0);setPersiGiorni(0);setSalvCicloIni(ci.iniTs);setRestCiclo(0);
     }
   },[ok,ci.iniTs]);
   // ===== CHIUSURA GIORNALIERA AUTOMATICA (a mezzanotte / al primo avvio del giorno nuovo) =====
@@ -1421,6 +1427,18 @@ function App(){
     }
   },[ok,ogS,lastDay]);
 
+  // Funzione RESTITUISCI AL BUDGET: soldi che tornano indietro, spalmati sui giorni rimanenti
+  function restituisciBudget(){
+    if(distImp<=0){setModal({em:"\u270F\uFE0F",tit:"Manca l'importo",msg:"Scrivi quanto vuoi restituire al budget.",buttons:[{lbl:"OK"}]});return;}
+    if(distImp>salvRisp){setModal({em:"\u{1F416}",tit:"Non ci sono abbastanza soldi",msg:"Nel salvadanaio ci sono solo \u20AC"+fm(salvRisp)+".",buttons:[{lbl:"OK"}]});return;}
+    var extra=distImp/gDiv;
+    setSalvRisp(function(v){return v-distImp;});
+    setRestCiclo(function(v){return v+distImp;});
+    setDistImp(0);setDistOpen(false);
+    setModal({em:"\u{1F4B0}",tit:"\u20AC"+fm(distImp)+" tornati nel budget!",
+      msg:"Il salvadanaio scende a \u20AC"+fm(salvRisp-distImp)+". Da oggi il budget sale di \u20AC"+fm(extra)+" al giorno per i "+gDiv+" giorni che restano fino al "+ci.fL+"."+(salvRisp-distImp<=0.004?"":"") ,
+      buttons:[{lbl:"\u{1F44D} Perfetto"}]});
+  }
   // Funzione ROMPI SALVADANAIO
   function rompiSalvadanaio(){
     if(rompiImp<=0){setModal({em:"\u270F\uFE0F",tit:"Manca l\'importo",msg:"Scrivi quanto vuoi prelevare dal salvadanaio.",buttons:[{lbl:"OK"}]});return;}
@@ -1466,7 +1484,7 @@ function App(){
 
   // ===== v16: BACKUP / RIPRISTINO =====
   var scaricaBackup=function(){
-    var d={ver:2,exported:new Date().toISOString(),stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali,alimOn:alimOn,alimSett:alimSett,alimGiorno:alimGiorno,alimTetto:alimTetto,alimBimba:alimBimba,fcMinOn:fcMinOn,fcMin:fcMin};
+    var d={ver:2,exported:new Date().toISOString(),stip:stip,gPaga:gPaga,sf:sf,spV:spV,pctR:pctR,tassa:tassa,salvRisp:salvRisp,salvCiclo:salvCiclo,salvCicloIni:salvCicloIni,salvGiorni:salvGiorni,persiGiorni:persiGiorni,delIds:delIds,goals:goals,evitati:evitati,roundTot:roundTot,roundUp:roundUp,streak:streak,bestStreak:bestStreak,catsX:catsX,monSel:monSel,contoIni:contoIni,contoIniRaw:contoIniRaw,contoIniData:contoIniData,contoIniCiclo:contoIniCiclo,contoOggi:contoOggi,contoOggiData:contoOggiData,contoExtra:contoExtra,contoStorico:contoStorico,contoIniModo:contoIniModo,contoLetture:contoLetture,fcTargetOn:fcTargetOn,fcTarget:fcTarget,annuali:annuali,alimOn:alimOn,alimSett:alimSett,alimGiorno:alimGiorno,alimTetto:alimTetto,alimBimba:alimBimba,fcMinOn:fcMinOn,fcMin:fcMin,restCiclo:restCiclo};
     var blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
     var a=document.createElement("a");
     a.href=URL.createObjectURL(blob);
@@ -1487,6 +1505,7 @@ function App(){
           if(d.stip)setStip(d.stip);
           if(d.gPaga)setGPaga(d.gPaga);if(d.sf)setSf(d.sf);if(d.spV)setSpV(d.spV);if(d.pctR!==undefined)setPctR(d.pctR);
           if(d.tassa!==undefined)setTassa(d.tassa);if(d.salvRisp!==undefined)setSalvRisp(d.salvRisp);if(d.salvCiclo!==undefined)setSalvCiclo(d.salvCiclo);if(d.salvCicloIni!==undefined)setSalvCicloIni(d.salvCicloIni);
+          if(d.restCiclo!==undefined)setRestCiclo(d.restCiclo);
           if(d.salvGiorni!==undefined)setSalvGiorni(d.salvGiorni);if(d.persiGiorni!==undefined)setPersiGiorni(d.persiGiorni);if(d.delIds)setDelIds(d.delIds);
           if(d.goals)setGoals(d.goals);if(d.catsX)setCatsX(d.catsX);if(d.monSel)setMonSel(d.monSel);if(d.evitati!==undefined)setEvitati(d.evitati);if(d.roundTot!==undefined)setRoundTot(d.roundTot);if(d.roundUp!==undefined)setRoundUp(d.roundUp);
           if(d.streak!==undefined)setStreak(d.streak);if(d.bestStreak!==undefined)setBestStreak(d.bestStreak);
@@ -1776,7 +1795,7 @@ function App(){
       e("div",{style:{background:C.cd,borderRadius:14,padding:16,marginBottom:12,borderLeft:"4px solid "+C.gd}},
         e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
           e("div",{style:{fontSize:15,fontWeight:900,color:C.gD}},"\u{1F416} Salvadanaio risparmio"),
-          e("div",{style:{fontSize:22,fontWeight:900,color:C.gn}},"\u20AC "+fm(salvRisp))
+          e("div",{style:{fontSize:22,fontWeight:900,color:C.gn}},"\u20AC "+fm(salvRisp),H("distribuisci"))
         ),
         tassa>0?e("div",{style:{background:C.gL,borderRadius:10,padding:"10px 12px",fontSize:13,marginBottom:10}},
           e("div",null,"\u{1F3AF} Obiettivo: risparmia \u20AC "+fm(tassa)+"/giorno"),
@@ -1785,7 +1804,28 @@ function App(){
         (roundTot>0||evitati>0)?e("div",{style:{fontSize:11,color:C.mu,marginBottom:8}},
           (roundTot>0?"\u{1FA99} \u20AC"+fm(roundTot)+" da arrotondamenti":"")+(roundTot>0&&evitati>0?" \u00b7 ":"")+(evitati>0?"\u{1F6E1}\uFE0F \u20AC"+fm(evitati)+" evitati":"")
         ):null,
-        salvRisp>0?e("button",{onClick:function(){setRompiOpen(true);},style:{width:"100%",padding:12,borderRadius:10,border:"none",background:C.gd,color:"#fff",fontWeight:800,fontSize:15,cursor:"pointer"}},"\u{1F528} Rompi salvadanaio"):null,
+        restCiclo>0.004?e("div",{style:{background:C.bL,borderRadius:10,padding:"9px 12px",fontSize:12,fontWeight:700,color:C.bl,marginBottom:8,lineHeight:1.5}},
+          "\u21A9\uFE0F \u20AC"+fm(restCiclo)+" gi\u00e0 restituiti al budget questo ciclo: +\u20AC"+fm(restCiclo/gDiv)+" al giorno fino al "+ci.fL
+        ):null,
+        e("div",{style:{display:"flex",gap:8,marginBottom:distOpen||rompiOpen?10:0}},
+          salvRisp>0?e("button",{onClick:function(){setDistOpen(!distOpen);setRompiOpen(false);},style:{flex:1,padding:11,borderRadius:10,border:"1.5px solid "+C.bl,background:distOpen?C.bL:"#fff",color:C.bl,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u21A9\uFE0F Distribuisci al budget"):null,
+          salvRisp>0?e("button",{onClick:function(){setRompiOpen(!rompiOpen);setDistOpen(false);},style:{flex:1,padding:11,borderRadius:10,border:"1.5px solid "+C.gd,background:rompiOpen?C.gL:"#fff",color:C.gd,fontWeight:800,fontSize:13,cursor:"pointer"}},"\u{1F416} Rompi per comprare"):null
+        ),
+        distOpen?e("div",{style:{marginBottom:10,background:"#f0f6fb",borderRadius:10,padding:12,border:"1px solid "+C.bl+"33"}},
+          e("div",{style:{fontSize:13,fontWeight:700,marginBottom:4,color:C.gD}},"Quanto vuoi rimetterti in tasca?"),
+          e("div",{style:{fontSize:11,color:C.mu,marginBottom:8,lineHeight:1.5}},"Esce dal salvadanaio ed entra nel budget di oggi e dei giorni che restano, in parti uguali."),
+          e("input",{type:"number",inputMode:"decimal",value:distImp===0?"":distImp,onChange:function(ev){setDistImp(parseFloat(ev.target.value)||0);},placeholder:"\u20AC quanto",style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:15,fontFamily:"monospace",boxSizing:"border-box",marginBottom:8}}),
+          e("div",{style:{display:"flex",flexWrap:"wrap",gap:6,marginBottom:8}},
+            [20,50,100].filter(function(v){return v<=salvRisp;}).map(function(v){
+              return e("button",{key:v,onClick:function(){setDistImp(v);},style:{padding:"6px 12px",borderRadius:9,border:"2px solid "+(distImp===v?C.bl:C.ln),background:distImp===v?C.bL:"#fff",fontWeight:distImp===v?900:600,fontSize:12,cursor:"pointer",color:distImp===v?C.bl:C.mu}},"\u20AC"+v);
+            }).concat([e("button",{key:"tutto",onClick:function(){setDistImp(salvRisp);},style:{padding:"6px 12px",borderRadius:9,border:"2px solid "+(distImp===salvRisp?C.bl:C.ln),background:distImp===salvRisp?C.bL:"#fff",fontWeight:distImp===salvRisp?900:600,fontSize:12,cursor:"pointer",color:distImp===salvRisp?C.bl:C.mu}},"tutto")])
+          ),
+          distImp>0&&distImp<=salvRisp?e("div",{style:{fontSize:11,color:C.bl,fontWeight:700,marginBottom:8}},"= +\u20AC"+fm(distImp/gDiv)+" al giorno per i "+gDiv+" giorni fino al "+ci.fL):null,
+          e("div",{style:{display:"flex",gap:8}},
+            e("button",{onClick:restituisciBudget,style:{background:C.bl,color:"#fff",border:"none",borderRadius:10,padding:"10px 18px",fontWeight:700,cursor:"pointer"}},"\u21A9\uFE0F Distribuisci"),
+            e("button",{onClick:function(){setDistOpen(false);setDistImp(0);},style:{background:"none",border:"1.5px solid "+C.mu,borderRadius:10,padding:"10px 18px",fontWeight:700,cursor:"pointer",color:C.mu}},"Annulla")
+          )
+        ):null,
         rompiOpen?e("div",{style:{marginTop:10,background:"#fafaf5",borderRadius:10,padding:12,border:"1px solid "+C.ln}},
           e("div",{style:{fontSize:13,fontWeight:700,marginBottom:8}},"Cosa compri con il salvadanaio?"),
           e("input",{value:rompiDesc,onChange:function(ev){setRompiDesc(ev.target.value);},placeholder:"Es. macchina del caff\u00e8",style:{width:"100%",padding:"9px 12px",borderRadius:10,border:"1.5px solid "+C.ln,fontSize:14,marginBottom:8,boxSizing:"border-box"}}),
@@ -2922,7 +2962,7 @@ function App(){
           e("button",{onClick:function(){setModal({em:"\u{1F6A8}",tit:"RESET TOTALE?",msg:"Spese azzerate, voci fisse di fabbrica e scheda Conto azzerata, anche sull'altro telefono. Da usare solo per ripartire da zero.",buttons:[{lbl:"\u{1F6A8} S\u00ec, resetta tutto",danger:true,fn:function(){setDelIds(delIds.concat(spV.map(function(x){return x.id;})).slice(-300));setSpV([]);setSf(SF0);setSyncNum(0);setContoIni(0);setContoIniRaw(0);setContoIniData("");setContoIniCiclo(0);setContoOggi(0);setContoOggiData("");setContoExtra(0);}},{lbl:"Annulla"}]});},style:{background:C.mu,color:"#fff",border:"none",borderRadius:8,padding:"8px 14px",fontWeight:700,cursor:"pointer"}},"Reset tutto")
         )
       ),
-      e("div",{style:{textAlign:"center",fontSize:10,color:C.mu,marginBottom:12}},"Budget Famiglia v25 \u00b7 budget spesa alimentare \u00b7 abbonamenti a uscita automatica \u00b7 annuali con quote autoaggiustanti \u00b7 fondo cassa netto \u00b7 aiuti (i) \u00b7 backup")
+      e("div",{style:{textAlign:"center",fontSize:10,color:C.mu,marginBottom:12}},"Budget Famiglia v26 \u00b7 budget spesa alimentare \u00b7 abbonamenti a uscita automatica \u00b7 annuali con quote autoaggiustanti \u00b7 fondo cassa netto \u00b7 aiuti (i) \u00b7 backup")
     ):null,
     // ===== v16: FINESTRA INTERNA (funziona anche dove i popup di sistema sono bloccati) =====
     showRacc?e("div",{onClick:function(){setShowRacc(false);},style:{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:900}},
