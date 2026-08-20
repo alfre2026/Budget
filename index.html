@@ -418,9 +418,22 @@ var M = (function () {
   /* ============================================================
      CICLI — dal registro delle paghe
      ============================================================ */
-  function cicli(store, oggi) {
-    var paghe = store.ev.filter(function (e) { return e.t === "paga"; })
+  // Due paghe a pochi giorni di distanza sono quasi sempre lo stesso stipendio registrato
+  // due volte (due telefoni che si sincronizzano, o un tocco di troppo). Se le contassi
+  // entrambe raddoppierei ciclo, quote e saldo atteso: tengo la prima e segnalo la seconda.
+  function pagheDoppie(store) {
+    var p = store.ev.filter(function (e) { return e.t === "paga"; })
       .sort(function (a, b) { return ts(a.d) - ts(b.d); });
+    var buone = [], scartate = [];
+    for (var i = 0; i < p.length; i++) {
+      var ultima = buone.length ? buone[buone.length - 1] : null;
+      if (ultima && giorniTra(ts(ultima.d), ts(p[i].d)) < 20) scartate.push(p[i]);
+      else buone.push(p[i]);
+    }
+    return { buone: buone, scartate: scartate };
+  }
+  function cicli(store, oggi) {
+    var paghe = pagheDoppie(store).buone;
     var dur = store.imp.durata || 31;
     var out = [];
     for (var i = 0; i < paghe.length; i++) {
@@ -494,6 +507,8 @@ var M = (function () {
       if (e.t === "accIni" || e.t === "versaExtra") out.push({ b: e.bustaId, imp: e.imp, t: ts(e.d) });
       if (e.t === "spesa" && e.fonte && e.fonte.indexOf("busta:") === 0)
         out.push({ b: e.fonte.slice(6), imp: -e.imp, t: ts(e.d) });
+      // "quei soldi non c'erano davvero": la lettura del conto smentisce l'accantonamento
+      if (e.t === "rett" && e.causa === "buste" && e.bustaId) out.push({ b: e.bustaId, imp: e.imp, t: ts(e.d) });
     });
     return out;
   }
@@ -693,6 +708,98 @@ var M = (function () {
   }
 
   /* ============================================================
+     LA PREVISIONE — parte dal saldo che hai letto, non da una stima
+     Saldo letto
+       - quello che e' uscito dopo la lettura
+       = quello che c'e' adesso sul conto
+       - fondo cassa
+       - fisse che devono ancora uscire
+       - residuo delle spese previste (carburante: previsti 150, spesi 75 -> restano 75)
+       - quote da mettere da parte e accantonamenti dei mesi scorsi
+       = IL NETTO, cioe' i soldi tuoi fino alla prossima paga
+     ============================================================ */
+  function evTs(e) { return e.ts || ts(e.d); }
+
+  function previsione(store, oggi, st) {
+    oggi = oggi || oggiTs();
+    st = st || stato(store, oggi);
+    var sim = st.sim;
+    if (!sim) return null;
+    var L = st.ultimaLettura;
+
+    // --- l'ancora ---
+    var ancora;
+    if (L) ancora = { tipo: "lettura", saldo: L.saldo, ts: evTs(L), d: L.d };
+    else ancora = {
+      tipo: "stima", saldo: c2(st.fc + st.accTot + st.salv + st.salvF + sim.ciclo.stip),
+      ts: ts(iso(sim.ciclo.ini)), d: iso(sim.ciclo.ini)
+    };
+
+    // --- che cosa e' uscito dal conto DOPO quel momento ---
+    var dopo = [];
+    store.ev.forEach(function (e) {
+      if ((e.t === "spesa" || e.t === "fissa") && evTs(e) > ancora.ts) {
+        var nome = e.t === "fissa" ? "voce fissa" : (e.nota || e.cat || "spesa");
+        store.fisse.forEach(function (f) { if (f.id === e.fissaId) nome = f.nome; });
+        dopo.push({ id: e.id, d: e.d, ts: evTs(e), nome: nome, imp: e.imp, tipo: e.t });
+      }
+    });
+    // addebiti automatici scattati dopo la lettura e mai confermati a mano
+    sim.fisse.forEach(function (r) {
+      if (r.autoUscita && r.scad != null && r.scad > ancora.ts - 43200000) {
+        dopo.push({ id: "auto-" + r.f.id, d: iso(r.scad), ts: r.scad, nome: r.f.nome, imp: r.f.prev, tipo: "auto" });
+      }
+    });
+    dopo.sort(function (a, b) { return a.ts - b.ts; });
+    var totDopo = c2(dopo.reduce(function (a, x) { return a + x.imp; }, 0));
+    var reale = c2(ancora.saldo - totDopo);
+
+    // --- gli impegni che restano ---
+    var fisseDaPagare = [], previste = [];
+    sim.fisse.forEach(function (r) {
+      if (r.fuori) return;
+      if (r.f.blind) {
+        if (r.restaDaUscire > 0.004)
+          fisseDaPagare.push({ id: r.f.id, icona: r.f.icona, nome: r.f.nome, imp: r.restaDaUscire, quando: r.scad });
+      } else if (r.restaDaUscire > 0.004) {
+        previste.push({
+          id: r.f.id, icona: r.f.icona, nome: r.f.nome, prev: r.f.prev,
+          speso: r.uscito, imp: r.restaDaUscire
+        });
+      }
+    });
+    var totFisse = c2(fisseDaPagare.reduce(function (a, x) { return a + x.imp; }, 0));
+    var totPreviste = c2(previste.reduce(function (a, x) { return a + x.imp; }, 0));
+
+    // --- le buste ---
+    var buste = store.buste.map(function (b) {
+      return {
+        id: b.id, icona: b.icona, nome: b.nome,
+        accumulato: c2(st.acc[b.id] || 0), quota: c2(sim.quotePer[b.id] || 0),
+        scad: scadBusta(store, b)
+      };
+    }).filter(function (b) { return b.accumulato > 0.004 || b.quota > 0.004; });
+    var totBuste = c2(buste.reduce(function (a, x) { return a + x.accumulato; }, 0));
+
+    // --- il salvadanaio della tassa: soldi gia' messi via, non spendibili ---
+    var salvadanai = c2(st.salv + st.salvF);
+
+    var netto = c2(reale - st.fc - totFisse - totPreviste - totBuste - salvadanai);
+    var giorniRimasti = Math.max(1, giorniTra(oggi, sim.ciclo.fin) + 1);
+
+    return {
+      ancora: ancora, dopo: dopo, totDopo: totDopo, reale: reale,
+      fc: st.fc, fisseDaPagare: fisseDaPagare, totFisse: totFisse,
+      previste: previste, totPreviste: totPreviste,
+      buste: buste, totBuste: totBuste, salvadanai: salvadanai,
+      netto: netto, giorniRimasti: giorniRimasti,
+      alGiorno: c2(netto / giorniRimasti),
+      // lo scarto fra quello che il registro si aspetta e quello che hai letto
+      scarto: L ? c2(L.saldo - st.attesoBanca) : null
+    };
+  }
+
+  /* ============================================================
      LETTURE DERIVATE PER LA SCHERMATA "OGGI"
      ============================================================ */
   function oggiVista(st) {
@@ -867,6 +974,7 @@ var M = (function () {
     cicli: cicli, statoFisse: statoFisse, quotaBusta: quotaBusta, simula: simula,
     pianoQuote: pianoQuote, scadBusta: scadBusta, pagaBusta: pagaBusta,
     stato: stato, oggiVista: oggiVista, inGiorni: inGiorni,
+    previsione: previsione, pagheDoppie: pagheDoppie, evTs: evTs,
     registraPaga: registraPaga, registraSpesa: registraSpesa, chiudiFissa: chiudiFissa,
     distribuisci: distribuisci, rettifica: rettifica, leggiSaldo: leggiSaldo,
     fissaFondoCassa: fissaFondoCassa, versaInBusta: versaInBusta,
@@ -1038,7 +1146,30 @@ function salva(s) { try { localStorage.setItem(CHIAVE, JSON.stringify(s)); } cat
 
 /* --- sincronizzazione: gli eventi sono immutabili, quindi si uniscono senza conflitti --- */
 function jbKey() { return localStorage.getItem("jb-key") || ""; }
-function jbBin() { return localStorage.getItem("jb-bin") || ""; }
+/* La vecchia app usa "jb-bin". Se scrivessimo li' dentro, l'ultima delle due app a
+   salvare cancellerebbe i dati dell'altra. Il registro nuovo ha un contenitore suo. */
+function jbBin() { return localStorage.getItem("jb-bin-v2") || ""; }
+function jbBinVecchio() { return localStorage.getItem("jb-bin") || ""; }
+function jbCrea(cb) {
+  if (!jbKey()) { cb(null); return; }
+  var x = new XMLHttpRequest();
+  x.open("POST", "https://api.jsonbin.io/v3/b", true);
+  x.setRequestHeader("Content-Type", "application/json");
+  x.setRequestHeader("X-Master-Key", jbKey());
+  x.setRequestHeader("X-Bin-Name", "registro-di-casa");
+  x.setRequestHeader("X-Bin-Private", "true");
+  x.onreadystatechange = function () {
+    if (x.readyState === 4) {
+      try {
+        var r = JSON.parse(x.responseText);
+        var id = r.metadata && r.metadata.id;
+        if (id) { localStorage.setItem("jb-bin-v2", id); cb(id); return; }
+      } catch (ex) { }
+      cb(null);
+    }
+  };
+  x.send(JSON.stringify({ v: 2, ev: [], nota: "registro di casa" }));
+}
 function jbGet(cb) {
   if (!jbBin()) { cb(null); return; }
   var x = new XMLHttpRequest();
@@ -1317,6 +1448,25 @@ function App() {
           Bottone("Spendi dal salvadanaio", function () { setFTipo("salv"); setForm(true); setTab("spese"); }, { vuoto: true, col: K.verde, size: 13 }))
       ])
     );
+  }
+
+  function chiediBusta(scarto) {
+    var lista = store.buste.filter(function (b) { return (st.acc[b.id] || 0) > 0.004; });
+    if (!lista.length) return;
+    chiedi({
+      tit: "Da quale busta?",
+      msg: "Tolgo \u20AC" + M.eur(Math.abs(scarto)) + " dall'accantonato: quei soldi sul conto non c'erano.",
+      extra: lista.map(function (b) {
+        return {
+          lbl: b.icona + " " + b.nome + " \u00b7 ora \u20AC" + M.eur(st.acc[b.id] || 0),
+          fn: function () {
+            agisci(function (s2) {
+              M.ev(s2, { t: "rett", causa: "buste", bustaId: b.id, imp: M.c2(scarto), d: M.iso(oggi) });
+            });
+          }
+        };
+      })
+    });
   }
 
   function apriDistribuisci() {
@@ -1682,13 +1832,99 @@ function App() {
     var letto = st.ultimaLettura;
     var scarto = letto ? M.c2(letto.saldo - st.attesoBanca) : null;
     var quadra = scarto != null && Math.abs(scarto) <= 2;
+    var P = M.previsione(store, oggi, st);
+    var doppie = M.pagheDoppie(store).scartate;
+
+    function passo(sx, val, nota, opt) {
+      opt = opt || {};
+      return e("div", { key: opt.k, style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "8px 0", borderTop: opt.riga ? ("1px solid " + K.riga) : "none" } },
+        e("span", { style: { flex: 1, minWidth: 0 } },
+          e("div", { style: { fontFamily: SANS, fontSize: 13, fontWeight: opt.forte ? 700 : 500 } }, sx),
+          nota ? e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 1, lineHeight: 1.45 } }, nota) : null),
+        Cifra(val, { size: opt.forte ? 15 : 13.5, peso: opt.forte ? 700 : 600, col: opt.col, segno: opt.segno }));
+    }
+
     return e("div", null,
+      doppie.length ? Scheda([
+        e("div", { key: "w", style: { fontFamily: SANS, fontSize: 12.5, lineHeight: 1.6 } },
+          e("b", null, "Ho trovato " + doppie.length + (doppie.length === 1 ? " paga registrata due volte" : " paghe registrate due volte") + "."),
+          " Le sto ignorando, altrimenti raddoppierebbero stipendio, quote e saldo previsto. Se erano davvero due accrediti diversi, scrivimelo cambiando la data di uno dei due.")
+      ], { accento: K.ottone }) : null,
+
+      /* ===== IL NETTO ===== */
       Scheda([
-        Etichetta("Sul conto dovrebbero esserci"),
-        e("div", { key: "n", style: { fontFamily: MONO, fontSize: 36, fontWeight: 700, marginTop: 3 } }, "\u20AC" + M.eur(st.attesoBanca)),
-        e("div", { key: "d", style: { fontFamily: SANS, fontSize: 12, color: K.tenue, marginTop: 4, lineHeight: 1.6 } },
-          "Non \u00e8 una stima: \u00e8 la somma di tutto quello che il registro sa. Se la banca dice un'altra cifra, manca un movimento.")
-      ], { accento: K.inchiostro }),
+        Etichetta("Dello stipendio ti restano davvero"),
+        e("div", { key: "n", style: { fontFamily: MONO, fontSize: 40, fontWeight: 700, marginTop: 2, color: P.netto >= 0 ? K.inchiostro : K.rosso } }, "\u20AC" + M.eur(P.netto)),
+        e("div", { key: "g", style: { fontFamily: SANS, fontSize: 13, color: K.tenue, marginTop: 3 } },
+          "\u20AC" + M.eur(P.alGiorno) + " al giorno per i " + P.giorniRimasti + " giorni che restano"),
+        P.ancora.tipo === "stima" ? e("div", { key: "a", style: { marginTop: 9, padding: "9px 11px", background: K.ottoneL, borderRadius: 3, fontFamily: SANS, fontSize: 11.5, lineHeight: 1.55 } },
+          "Non hai ancora letto nessun estratto conto: sto partendo da una stima (fondo cassa + stipendio). Scrivi il saldo vero qui sotto e il numero diventa esatto.") : null
+      ], { accento: P.netto >= 0 ? K.inchiostro : K.rosso }),
+
+      /* ===== IL CALCOLO, IN CHIARO ===== */
+      Scheda([
+        Etichetta("Come ci arrivo"),
+        e("div", { key: "c", style: { marginTop: 4 } },
+          passo("Saldo letto in banca", P.ancora.saldo,
+            P.ancora.tipo === "lettura"
+              ? ("il " + M.lblLungo(M.ts(P.ancora.d)) + " alle " + new Date(P.ancora.ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }))
+              : "stima di partenza", { k: "s1" }),
+          passo("Uscito dopo quella lettura", -P.totDopo,
+            P.dopo.length ? (P.dopo.length + (P.dopo.length === 1 ? " movimento" : " movimenti") + " registrati dopo quel momento") : "niente, per ora",
+            { k: "s2", col: K.rosso, riga: true }),
+          passo("Sul conto adesso", P.reale, "quello che troveresti guardando in questo istante", { k: "s3", forte: true, riga: true }),
+          passo("Fondo cassa", -P.fc, "non si tocca", { k: "s4", col: K.tenue, riga: true }),
+          passo("Fisse ancora da pagare", -P.totFisse,
+            P.fisseDaPagare.length ? P.fisseDaPagare.map(function (x) { return x.nome; }).join(", ") : "tutte gi\u00e0 uscite",
+            { k: "s5", col: K.ottone, riga: true }),
+          passo("Spese previste, quello che manca", -P.totPreviste,
+            P.previste.length ? P.previste.map(function (x) {
+              return x.nome + ": restano \u20AC" + M.eur(x.imp) + " dei \u20AC" + M.eur0(x.prev) + (x.speso > 0.004 ? (" (\u20AC" + M.eur(x.speso) + " gi\u00e0 spesi)") : "");
+            }).join(" \u00b7 ") : "nessuna previsione aperta",
+            { k: "s6", col: K.ottone, riga: true }),
+          passo("Quote e accantonamenti", -P.totBuste,
+            P.buste.length ? P.buste.map(function (x) { return x.nome + " \u20AC" + M.eur(x.accumulato); }).join(" \u00b7 ") : "nessuna busta",
+            { k: "s7", col: K.ottone, riga: true }),
+          P.salvadanai > 0.004 ? passo("Salvadanai", -P.salvadanai, "risparmio gi\u00e0 messo via", { k: "s8", col: K.verde, riga: true }) : null,
+          e("div", { key: "tot", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8, paddingTop: 9, borderTop: "2px solid " + K.inchiostro } },
+            e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Il tuo netto"),
+            Cifra(P.netto, { size: 19, peso: 700, col: P.netto >= 0 ? K.inchiostro : K.rosso })))
+      ]),
+
+      /* ===== LETTURA DEL SALDO ===== */
+      Scheda([
+        Etichetta("Aggiorna la lettura"),
+        e("div", { key: "d", style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, lineHeight: 1.6, margin: "5px 0 9px" } },
+          "Guarda il saldo in banca adesso e scrivilo qui. Da questo momento in poi conteranno solo le spese registrate dopo: l'ora conta."),
+        e("div", { key: "i", style: { display: "flex", gap: 8 } },
+          Campo({ type: "number", inputMode: "decimal", mono: true, placeholder: "\u20AC saldo che leggi", value: saldoIn, onChange: function (x) { setSaldoIn(x.target.value); } }),
+          Bottone("Registra", function () {
+            var n = parseFloat(saldoIn) || 0;
+            if (n <= 0) return;
+            agisci(function (s) { M.leggiSaldo(s, n); });
+            setSaldoIn("");
+          }, { largo: false, pad: "11px 16px" })),
+        letto ? e("div", { key: "r", style: { marginTop: 12 } },
+          RigaVoce("Il registro si aspettava", Cifra(st.attesoBanca)),
+          RigaVoce(e("b", { style: { color: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) } },
+            quadra ? "I conti tornano" : (scarto < 0 ? "Mancano all'appello" : "Ci sono in pi\u00f9")),
+            Cifra(Math.abs(scarto), { peso: 700, col: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) }), { ultima: true })
+        ) : null,
+        letto && !quadra ? e("div", { key: "f", style: { marginTop: 11 } },
+          e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, marginBottom: 8, lineHeight: 1.6 } },
+            "Dimmi da dove viene la differenza, cos\u00ec il registro torna a dire la verit\u00e0:"),
+          e("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+            Bottone(scarto < 0 ? "Spese che non ho registrato" : "Soldi entrati che non sapevo", function () {
+              agisci(function (s) { M.rettifica(s, scarto, "budget", M.iso(oggi)); });
+            }, { vuoto: true, col: scarto < 0 ? K.rosso : K.verde, size: 12 }),
+            st.accTot > 0.004 ? Bottone("Le quote non le ho messe da parte davvero", function () {
+              chiediBusta(scarto);
+            }, { vuoto: true, col: K.ottone, size: 12 }) : null,
+            Bottone("Movimento che non riguarda il mese (giroconto, prelievo)", function () {
+              agisci(function (s) { M.rettifica(s, scarto, "fuori"); });
+            }, { vuoto: true, col: K.tenue, size: 12 }))
+        ) : null
+      ], { accento: letto ? (quadra ? K.verde : K.rosso) : K.riga }),
 
       Scheda([
         Etichetta("Di chi sono quei soldi"),
@@ -1703,38 +1939,6 @@ function App() {
         e("div", { key: "s", style: { marginTop: 11, padding: "10px 12px", background: K.carta, borderRadius: 3, fontFamily: SANS, fontSize: 12, lineHeight: 1.6 } },
           e("b", null, "Non scendere sotto \u20AC" + M.eur(st.soglia) + "."), " \u00c8 il fondo cassa pi\u00f9 tutto quello che ci hai messo sopra e non hai ancora usato: sale ogni mese da solo, scende solo quando spendi davvero quei soldi.")
       ]),
-
-      Scheda([
-        Etichetta("Controlla con la banca"),
-        e("div", { key: "i", style: { marginTop: 8, display: "flex", gap: 8 } },
-          Campo({ type: "number", inputMode: "decimal", mono: true, placeholder: "\u20AC saldo che leggi", value: saldoIn, onChange: function (x) { setSaldoIn(x.target.value); } }),
-          Bottone("Registra", function () {
-            var n = parseFloat(saldoIn) || 0;
-            if (n <= 0) return;
-            agisci(function (s) { M.leggiSaldo(s, n); });
-            setSaldoIn("");
-          }, { largo: false, pad: "11px 16px" })),
-        letto ? e("div", { key: "r", style: { marginTop: 12 } },
-          RigaVoce("Letto il " + M.lbl(M.ts(letto.d)), Cifra(letto.saldo)),
-          RigaVoce("Atteso dal registro", Cifra(st.attesoBanca)),
-          RigaVoce(e("b", { style: { color: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) } },
-            quadra ? "I conti tornano" : (scarto < 0 ? "Mancano all'appello" : "Ci sono in pi\u00f9")),
-            Cifra(Math.abs(scarto), { peso: 700, col: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) }), { ultima: true })
-        ) : e("div", { key: "v", style: { marginTop: 9, fontFamily: SANS, fontSize: 12, color: K.tenue, lineHeight: 1.6 } },
-          "Scrivi il saldo che leggi in banca: l'app lo confronta con quello che si aspetta e ti dice se manca qualcosa."),
-        letto && !quadra ? e("div", { key: "f", style: { marginTop: 11 } },
-          e("div", { style: { fontFamily: SANS, fontSize: 12, color: K.tenue, marginBottom: 8, lineHeight: 1.6 } },
-            scarto < 0 ? "Due strade: se era una spesa che hai dimenticato di segnare, il budget deve scendere. Se erano soldi spostati altrove, il budget non c'entra."
-              : "Sono soldi arrivati che il registro non conosceva: puoi metterli nel budget del mese o lasciarli sul conto."),
-          e("div", { style: { display: "flex", gap: 7 } },
-            Bottone(scarto < 0 ? "Era una spesa" : "Aggiungili al budget", function () {
-              agisci(function (s) { M.rettifica(s, scarto, "budget", M.iso(M.piuGiorni(oggi, -1) >= sim.ciclo.ini ? M.piuGiorni(oggi, -1) : oggi)); });
-            }, { vuoto: true, col: scarto < 0 ? K.rosso : K.verde, size: 12 }),
-            Bottone("Movimento fuori app", function () {
-              agisci(function (s) { M.rettifica(s, scarto, "fuori"); });
-            }, { vuoto: true, col: K.tenue, size: 12 }))
-        ) : null
-      ], { accento: letto ? (quadra ? K.verde : K.rosso) : K.riga }),
 
       e("div", { key: "md", style: { marginBottom: 10 } },
         Bottone(det ? "Nascondi il prospetto" : "Mostra il prospetto completo",
@@ -1958,22 +2162,35 @@ function App() {
       e("div", { style: { margin: "16px 0 6px" } }, Etichetta("Due telefoni")),
       Scheda([
         e("div", { key: "s", style: { fontFamily: SANS, fontSize: 12, color: K.tenue, lineHeight: 1.6, marginBottom: 9 } },
-          jbBin() ? ("Collegato. Gli aggiornamenti si uniscono da soli: i movimenti sono immutabili, quindi non si sovrascrivono mai a vicenda. Stato: " + (sync === "ok" ? "sincronizzato" : sync === "ko" ? "non raggiungibile" : "in attesa") + ".")
-            : "Per usare l'app su due telefoni serve un contenitore gratuito su jsonbin.io: incolla qui la master key e l'id del bin."),
+          jbBin() ? ("Collegato al contenitore " + jbBin().slice(0, 8) + "\u2026 Stato: " + (sync === "ok" ? "sincronizzato" : sync === "ko" ? "non raggiungibile" : "in attesa") + ". I movimenti sono immutabili: i due telefoni si uniscono senza sovrascriversi.")
+            : "Per usare il registro su due telefoni serve la master key di jsonbin.io. Il contenitore lo creo io, separato da quello della vecchia app."),
         !jbBin() ? e("div", { key: "f" },
-          Campo({ placeholder: "Master key", value: cfgKey, onChange: function (x) { setCfgKey(x.target.value); } }),
-          e("div", { style: { height: 7 } }),
-          Campo({ placeholder: "Bin id", value: cfgBin, onChange: function (x) { setCfgBin(x.target.value); } }),
+          Campo({ placeholder: "Master key di jsonbin.io", value: cfgKey, onChange: function (x) { setCfgKey(x.target.value); } }),
           e("div", { style: { height: 9 } }),
-          Bottone("Collega", function () {
+          Bottone(busy ? "Creo il contenitore\u2026" : "Crea un contenitore nuovo", function () {
+            if (!cfgKey || busy) return;
+            localStorage.setItem("jb-key", cfgKey.trim());
+            setBusy(true);
+            jbCrea(function (id) {
+              setBusy(false);
+              if (id) { setSync("ok"); chiedi({ tit: "Fatto", msg: "Contenitore creato: " + id + "\n\nSull'altro telefono apri questa stessa pagina, incolla la master key e poi l'id qui sopra." }); }
+              else chiedi({ tit: "Non ci sono riuscito", msg: "Controlla la master key. Se il problema resta, crea il bin a mano su jsonbin.io e incolla l'id qui sotto." });
+            });
+          }, { spento: busy }),
+          e("div", { style: { height: 9 } }),
+          Campo({ placeholder: "\u2026oppure incolla l'id di un contenitore gi\u00e0 fatto", value: cfgBin, onChange: function (x) { setCfgBin(x.target.value); } }),
+          e("div", { style: { height: 9 } }),
+          Bottone("Collega a questo id", function () {
             if (!cfgKey || !cfgBin) return;
             localStorage.setItem("jb-key", cfgKey.trim());
-            localStorage.setItem("jb-bin", cfgBin.trim());
+            localStorage.setItem("jb-bin-v2", cfgBin.trim());
             setSync("ok");
             chiedi({ tit: "Collegato", msg: "Da adesso i due telefoni si aggiornano da soli." });
-          })
+          }, { vuoto: true, col: K.inchiostro, size: 13 }),
+          jbBinVecchio() ? e("div", { style: { marginTop: 10, padding: "9px 11px", background: K.bluL, borderRadius: 3, fontFamily: SANS, fontSize: 11, lineHeight: 1.55 } },
+            "Sul telefono c'\u00e8 gi\u00e0 il contenitore della vecchia app (" + jbBinVecchio().slice(0, 8) + "\u2026). Non lo tocco: il registro nuovo ne usa uno suo, cos\u00ec le due app non si cancellano i dati a vicenda.") : null
         ) : Bottone("Scollega questo telefono", function () {
-          localStorage.removeItem("jb-key"); localStorage.removeItem("jb-bin"); setSync("off");
+          localStorage.removeItem("jb-bin-v2"); setSync("off");
         }, { vuoto: true, col: K.tenue, size: 12 })
       ]),
 
@@ -1989,6 +2206,25 @@ function App() {
             a.download = "registro-" + M.iso(oggi) + ".json";
             a.click();
           }, { vuoto: true, col: K.inchiostro, size: 12 }),
+          Bottone("Controlla i dati", function () {
+            var pd = M.pagheDoppie(store);
+            var righe = [];
+            righe.push(store.ev.length + " movimenti in tutto");
+            righe.push(st.cicli.length + (st.cicli.length === 1 ? " ciclo" : " cicli") + " di stipendio");
+            if (pd.scartate.length) righe.push("\u26A0 " + pd.scartate.length + " paghe doppie ignorate");
+            var letture = store.ev.filter(function (x) { return x.t === "lettura"; }).length;
+            righe.push(letture + (letture === 1 ? " lettura del conto" : " letture del conto"));
+            righe.push("contenitore: " + (jbBin() ? jbBin().slice(0, 8) + "\u2026" : "nessuno (solo questo telefono)"));
+            chiedi({
+              tit: "Stato del registro", msg: righe.join("\n"),
+              extra: pd.scartate.length ? [{
+                lbl: "Cancella le " + pd.scartate.length + " paghe doppie", pericolo: true,
+                fn: function () {
+                  agisci(function (s2) { pd.scartate.forEach(function (x) { M.togliEv(s2, x.id); }); });
+                }
+              }] : []
+            });
+          }, { vuoto: true, col: K.blu, size: 12 }),
           Bottone("Ricomincia da zero", function () {
             chiedi({
               tit: "Cancellare tutto?", msg: "Sparisce l'intero registro di questo telefono. I dati della versione precedente restano al loro posto.",
