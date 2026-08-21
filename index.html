@@ -601,7 +601,7 @@ var M = (function () {
     var ultimo = Math.min(oggi, ciclo.fin);
     var giorni = [];
     var speso = 0, tassaTot = 0, dist = 0, rett = 0;
-    var serie = 0, serieMax = 0, giorniOk = 0, giorniPersi = 0;
+    var serie = 0, serieMax = 0, giorniOk = 0, giorniPersi = 0, giorniParziali = 0;
 
     for (var t0 = ciclo.ini; t0 <= ultimo; t0 = piuGiorni(t0, 1)) {
       var idx = giorniTra(ciclo.ini, t0);          // 0-based
@@ -622,7 +622,7 @@ var M = (function () {
         tassaG = Math.max(0, Math.min(imp.tassa, resta));
         tassaG = c2(tassaG);
         if (tassaG >= imp.tassa - 0.004) { giorniOk++; serie++; if (serie > serieMax) serieMax = serie; }
-        else { giorniPersi++; serie = 0; }
+        else { giorniPersi++; serie = 0; if (tassaG > 0.004) giorniParziali++; }
       }
       giorni.push({
         ts: t0, idx: idx, rimasti: rimasti, base: base, budget: c2(budgetG),
@@ -646,7 +646,8 @@ var M = (function () {
       disponibile: disponibile, giorni: giorni, oggiG: ultimoG,
       speso: speso, tassa: tassaTot, dist: c2(dist), rett: c2(rett), residuo: residuo,
       impegnato: c2(impegnato), uscitoFisse: c2(uscitoFisse), salvFisse: c2(salvFisse), sforoFisse: c2(sforoFisse),
-      giorniTot: giorniTot, giorniOk: giorniOk, giorniPersi: giorniPersi, serie: serie, serieMax: serieMax
+      giorniTot: giorniTot, giorniOk: giorniOk, giorniPersi: giorniPersi,
+      giorniParziali: giorniParziali, serie: serie, serieMax: serieMax
     };
   }
 
@@ -676,8 +677,18 @@ var M = (function () {
         chiusi.push({ c: c, sim: sim, avanzo: avanzo });
       }
     }
-    // il risparmio maturato nel ciclo in corso, tenuto separato da quello dei mesi scorsi
-    var salvCicloCorr = simCorrente ? simCorrente.tassa : 0;
+    // Il risparmio maturato in questo ciclo, al netto di quello che hai ripreso o speso
+    // durante il ciclo stesso: cosi' la voce "mesi scorsi" non va mai sotto zero.
+    var usciteSalvCiclo = 0;
+    if (corrente) {
+      store.ev.forEach(function (e) {
+        var t = ts(e.d);
+        if (t < corrente.ini || t > corrente.fin) return;
+        if (e.t === "dist") usciteSalvCiclo = c2(usciteSalvCiclo + e.imp);
+        if (e.t === "spesa" && e.fonte === "salv") usciteSalvCiclo = c2(usciteSalvCiclo + e.imp);
+      });
+    }
+    var salvCicloCorr = simCorrente ? Math.max(0, c2(simCorrente.tassa - usciteSalvCiclo)) : 0;
     var salvFCiclo = simCorrente ? simCorrente.salvFisse : 0;
     // saldi iniziali, movimenti diretti e correzioni a mano
     store.ev.forEach(function (e) {
@@ -818,7 +829,9 @@ var M = (function () {
     var salvFisse = st.salvF;                 // risparmio ottenuto sulle bollette
     var fantasma = c2(accPrima + quotaMese + salvPrima + salvOra + salvFisse);
 
-    var netto = c2(reale - st.fc - totFisse - totPreviste - fantasma);
+    var soglia = c2(st.fc + fantasma);        // fondo cassa + soldi fantasma: sotto qui non si scende
+    var impegniFisse = c2(totFisse + totPreviste);
+    var netto = c2(reale - soglia - impegniFisse);
     var giorniRimasti = Math.max(1, giorniTra(oggi, sim.ciclo.fin) + 1);
     var giorniAttesa = giorniRimasti;
     if (store.imp.prevista) {
@@ -833,6 +846,7 @@ var M = (function () {
       buste: buste, totBuste: totBuste,
       accPrima: accPrima, quotaMese: quotaMese,
       salvPrima: salvPrima, salvOra: salvOra, salvFisse: salvFisse, fantasma: fantasma,
+      soglia: soglia, impegniFisse: impegniFisse,
       netto: netto, giorniRimasti: giorniRimasti, giorniAttesa: giorniAttesa,
       alGiorno: c2(netto / giorniRimasti),
       alGiornoAttesa: c2(netto / giorniAttesa),
@@ -1287,6 +1301,7 @@ function App() {
   var _cfgKey = us(""), cfgKey = _cfgKey[0], setCfgKey = _cfgKey[1];
   var _cfgBin = us(""), cfgBin = _cfgBin[0], setCfgBin = _cfgBin[1];
   var _det = us(false), det = _det[0], setDet = _det[1];
+  var _fant = us(false), fant = _fant[0], setFant = _fant[1];
   var primo = ur(true);
 
   ue(function () { salva(store); }, [store]);
@@ -1763,7 +1778,7 @@ function App() {
           RigaVoce(e("span", { style: { textDecoration: "line-through", color: K.tenue } }, "Gi\u00e0 uscite dal conto"), Cifra(sim.uscitoFisse, { col: K.tenue })),
           RigaVoce("Deve ancora uscire dal conto", Cifra(sim.impegnato, { col: K.ottone })),
           RigaVoce("Risparmiato sulle bollette chiuse", Cifra(sim.salvFisse, { col: K.verde }), { ultima: true })),
-        e("div", { key: "n", style: { marginTop: 9, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.6, fontStyle: "italic" } },
+        e("div", { key: "nota", style: { marginTop: 9, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.6, fontStyle: "italic" } },
           "Le voci barrate sono soldi che hanno gi\u00e0 lasciato il conto: restano in elenco per memoria, ma non pesano pi\u00f9 su niente.")
       ], { accento: K.inchiostro }),
 
@@ -2092,56 +2107,58 @@ function App() {
           " Le sto ignorando, altrimenti raddoppierebbero stipendio, quote e saldo previsto. Se erano davvero due accrediti diversi, scrivimelo cambiando la data di uno dei due.")
       ], { accento: K.ottone }) : null,
 
-      /* ===== IL NETTO ===== */
+      /* ===== 1. QUELLO CHE DOVRESTI TROVARE ADESSO ===== */
       Scheda([
-        Etichetta("Dello stipendio ti restano davvero"),
-        e("div", { key: "n", style: { fontFamily: MONO, fontSize: 40, fontWeight: 700, marginTop: 2, color: P.netto >= 0 ? K.inchiostro : K.rosso } }, "\u20AC" + M.eur(P.netto)),
-        e("div", { key: "g", style: { fontFamily: SANS, fontSize: 13, color: K.tenue, marginTop: 3 } },
-          "\u20AC" + M.eur(P.alGiorno) + " al giorno per i " + P.giorniRimasti + " giorni che restano"),
-        (P.giorniAttesa !== P.giorniRimasti) ? e("div", { key: "g2", style: { fontFamily: SANS, fontSize: 12, color: K.blu, marginTop: 2 } },
-          "\u20AC" + M.eur(P.alGiornoAttesa) + " al giorno se la paga arriva il " + M.lbl(M.ts(store.imp.prevista)) + " (" + P.giorniAttesa + " giorni)") : null,
-        P.ancora.tipo === "stima" ? e("div", { key: "a", style: { marginTop: 9, padding: "9px 11px", background: K.ottoneL, borderRadius: 3, fontFamily: SANS, fontSize: 11.5, lineHeight: 1.55 } },
-          "Non hai ancora letto nessun estratto conto: sto partendo da una stima (fondo cassa + stipendio). Scrivi il saldo vero qui sotto e il numero diventa esatto.") : null
-      ], { accento: P.netto >= 0 ? K.inchiostro : K.rosso }),
+        Etichetta("Se guardi il conto adesso dovresti trovare"),
+        e("div", { key: "n", style: { fontFamily: MONO, fontSize: 40, fontWeight: 700, marginTop: 2, letterSpacing: -1 } }, "\u20AC" + M.eur(P.reale)),
+        e("div", { key: "d", style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, marginTop: 3, lineHeight: 1.5 } },
+          P.ancora.tipo === "lettura"
+            ? ("letti \u20AC" + M.eur(P.ancora.saldo) + " il " + M.lbl(M.ts(P.ancora.d)) + " alle " + new Date(P.ancora.ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+              + (P.totDopo > 0.004 ? (", meno \u20AC" + M.eur(P.totDopo) + " usciti dopo") : ", nessuna spesa dopo"))
+            : "stima: non hai ancora registrato nessun estratto conto")
+      ], { accento: K.inchiostro }),
 
-      /* ===== IL CALCOLO, IN CHIARO ===== */
+      /* ===== 2. LA SOTTRAZIONE, IN QUATTRO RIGHE ===== */
       Scheda([
-        Etichetta("Come ci arrivo"),
-        e("div", { key: "c", style: { marginTop: 4 } },
-          passo("Saldo letto in banca", P.ancora.saldo,
-            P.ancora.tipo === "lettura"
-              ? ("il " + M.lblLungo(M.ts(P.ancora.d)) + " alle " + new Date(P.ancora.ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }))
-              : "stima di partenza", { k: "s1" }),
-          passo("Uscito dopo quella lettura", -P.totDopo,
-            P.dopo.length ? (P.dopo.length + (P.dopo.length === 1 ? " movimento" : " movimenti") + " registrati dopo quel momento") : "niente, per ora",
-            { k: "s2", col: K.rosso, riga: true }),
-          passo("Sul conto adesso", P.reale, "quello che troveresti guardando in questo istante", { k: "s3", forte: true, riga: true }),
-          passo("Fondo cassa", -P.fc, "non si tocca", { k: "s4", col: K.tenue, riga: true }),
-          passo("Fisse ancora da pagare", -P.totFisse,
-            P.fisseDaPagare.length ? P.fisseDaPagare.map(function (x) { return x.nome; }).join(", ") : "tutte gi\u00e0 uscite",
-            { k: "s5", col: K.ottone, riga: true }),
-          passo("Spese previste, quello che manca", -P.totPreviste,
-            P.previste.length ? P.previste.map(function (x) {
-              return x.nome + ": restano \u20AC" + M.eur(x.imp) + " dei \u20AC" + M.eur0(x.prev) + (x.speso > 0.004 ? (" (\u20AC" + M.eur(x.speso) + " gi\u00e0 spesi)") : "");
-            }).join(" \u00b7 ") : "nessuna previsione aperta",
-            { k: "s6", col: K.ottone, riga: true }),
-          e("div", { key: "fz", style: { marginTop: 10, marginBottom: 2, paddingTop: 8, borderTop: "1px solid " + K.riga } },
-            Etichetta("Denaro fantasma \u00b7 lo leggi ma non \u00e8 tuo", K.ottone),
-            e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 2, lineHeight: 1.5, fontStyle: "italic" } },
-              "Queste cifre sono sul conto e le vedi nell'estratto, ma non fanno parte n\u00e9 del fondo cassa n\u00e9 dello stipendio di questo mese. Si vedono e non si toccano.")),
-          P.quotaMese > 0.004 ? passo("Quota di questo mese", -P.quotaMese,
-            P.buste.filter(function (x) { return x.quota > 0.004; }).map(function (x) { return x.nome + " \u20AC" + M.eur(x.quota); }).join(" \u00b7 "),
-            { k: "s7a", col: K.ottone }) : null,
-          P.accPrima > 0.004 ? passo("Quote accumulate nei mesi scorsi", -P.accPrima,
-            P.buste.filter(function (x) { return x.accumulato > 0.004; }).map(function (x) { return x.nome + " \u20AC" + M.eur(M.c2(x.accumulato - x.quota)); }).join(" \u00b7 "),
-            { k: "s7b", col: K.ottone, riga: true }) : null,
-          P.salvPrima > 0.004 ? passo("Risparmio dei mesi scorsi", -P.salvPrima, "tassa messa via prima di questo stipendio", { k: "s8a", col: K.verde, riga: true }) : null,
-          P.salvOra > 0.004 ? passo("Risparmio di questo mese", -P.salvOra, sim.giorniOk + " giorni rispettati finora", { k: "s8b", col: K.verde, riga: true }) : null,
-          P.salvFisse > 0.004 ? passo("Risparmio dalle fisse", -P.salvFisse, "bollette venute meno del previsto", { k: "s8c", col: K.verde, riga: true }) : null,
-          e("div", { key: "tot", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8, paddingTop: 9, borderTop: "2px solid " + K.inchiostro } },
-            e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Il tuo netto"),
-            Cifra(P.netto, { size: 19, peso: 700, col: P.netto >= 0 ? K.inchiostro : K.rosso })))
-      ]),
+        e("div", { key: "s1", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "3px 0 9px" } },
+          e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Non toccare"),
+          Cifra(P.soglia, { size: 17, peso: 700, col: K.ottone })),
+        e("div", { key: "s2", style: { paddingLeft: 2, marginTop: -4, marginBottom: 8 } },
+          e("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: SANS, fontSize: 12, color: K.tenue, padding: "3px 0" } },
+            e("span", null, "fondo cassa"), Cifra(P.fc, { size: 12, col: K.tenue })),
+          e("button", {
+            onClick: function () { setFant(!fant); },
+            style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "baseline", background: "none", border: "none", padding: "3px 0", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: K.tenue }
+          }, e("span", null, "soldi fantasma ", e("span", { style: { color: K.blu, fontWeight: 700 } }, fant ? "\u2212" : "+")), Cifra(P.fantasma, { size: 12, col: K.tenue })),
+          fant ? e("div", { style: { paddingLeft: 10, borderLeft: "2px solid " + K.ottoneL, marginTop: 4, marginBottom: 4 } },
+            [["Quota di questo mese", P.quotaMese, P.buste.filter(function (x) { return x.quota > 0.004; }).map(function (x) { return x.nome + " \u20AC" + M.eur(x.quota); }).join(" \u00b7 ")],
+            ["Quote dei mesi scorsi", P.accPrima, P.buste.filter(function (x) { return Math.abs(x.accumulato - x.quota) > 0.004; }).map(function (x) { return x.nome + " \u20AC" + M.eur(M.c2(x.accumulato - x.quota)); }).join(" \u00b7 ")],
+            ["Risparmio dei mesi scorsi", P.salvPrima, "tassa messa via prima di questa paga"],
+            ["Risparmio di questo mese", P.salvOra, sim.giorniOk + " giorni rispettati finora"],
+            ["Risparmio dalle fisse", P.salvFisse, "bollette venute meno del previsto"]].map(function (r, i) {
+              if (Math.abs(r[1]) <= 0.004) return null;
+              return e("div", { key: i, style: { padding: "4px 0" } },
+                e("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: SANS, fontSize: 11.5 } },
+                  e("span", null, r[0]), Cifra(r[1], { size: 11.5, col: i < 2 ? K.ottone : K.verde })),
+                r[2] ? e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue, marginTop: 1 } }, r[2]) : null);
+            })) : null,
+          e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 3, lineHeight: 1.5, fontStyle: "italic" } },
+            "I soldi fantasma li leggi nell'estratto ma non sono n\u00e9 tuoi da spendere n\u00e9 fondo cassa: si vedono e non si toccano.")),
+        e("div", { key: "s3", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "9px 0", borderTop: "1px solid " + K.riga } },
+          e("span", null,
+            e("div", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Fisse ancora da pagare"),
+            e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 1 } },
+              "rate e abbonamenti \u20AC" + M.eur(P.totFisse) + " \u00b7 previsioni aperte \u20AC" + M.eur(P.totPreviste))),
+          Cifra(P.impegniFisse, { size: 17, peso: 700, col: K.rosso })),
+        e("div", { key: "s4", style: { marginTop: 4, paddingTop: 11, borderTop: "2px solid " + K.inchiostro } },
+          e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
+            e("span", { style: { fontFamily: SERIF, fontSize: 16, fontWeight: 700 } }, "Il tuo netto"),
+            e("span", { style: { fontFamily: MONO, fontVariantNumeric: "tabular-nums", fontSize: 30, fontWeight: 700, color: P.netto >= 0 ? K.inchiostro : K.rosso } }, "\u20AC" + M.eur(P.netto))),
+          e("div", { style: { fontFamily: SANS, fontSize: 12.5, color: K.tenue, marginTop: 3 } },
+            "\u20AC" + M.eur(P.alGiorno) + " al giorno per i " + P.giorniRimasti + " giorni che restano"),
+          (P.giorniAttesa !== P.giorniRimasti) ? e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.blu, marginTop: 2 } },
+            "\u20AC" + M.eur(P.alGiornoAttesa) + " se la paga arriva il " + M.lbl(M.ts(store.imp.prevista))) : null)
+      ], { accento: P.netto >= 0 ? K.verde : K.rosso }),
 
       /* ===== LETTURA DEL SALDO ===== */
       Scheda([
@@ -2172,9 +2189,17 @@ function App() {
             st.accTot > 0.004 ? Bottone("Le quote non le ho messe da parte davvero", function () {
               chiediBusta(scarto);
             }, { vuoto: true, col: K.ottone, size: 12 }) : null,
-            Bottone("Movimento che non riguarda il mese (giroconto, prelievo)", function () {
-              agisci(function (s) { M.rettifica(s, scarto, "fuori"); });
-            }, { vuoto: true, col: K.tenue, size: 12 }))
+            Bottone("Erano soldi del fondo cassa \u00b7 riparti da qui", function () {
+              chiedi({
+                tit: "Riparti da questa lettura",
+                msg: "Il fondo cassa passa da \u20AC" + M.eur(st.fc) + " a \u20AC" + M.eur(M.c2(st.fc + scarto)) +
+                  ".\n\nDa questo momento il saldo previsto e quello vero coincidono, e lo scostamento riparte da zero.",
+                conferma: "S\u00ec, riparti", 
+                onOk: function () {
+                  agisci(function (s2) { M.fissaFondoCassa(s2, M.c2(st.fc + scarto), "allineato alla lettura del " + M.lblLungo(M.ts(letto.d))); });
+                }
+              });
+            }, { vuoto: true, col: K.inchiostro, size: 12 }))
         ) : null
       ], { accento: letto ? (quadra ? K.verde : K.rosso) : K.riga }),
 
@@ -2186,7 +2211,26 @@ function App() {
           RigaVoce("Salvadanaio del risparmio", Cifra(st.salv, { col: K.verde })),
           st.salvF > 0.004 ? RigaVoce("Salvadanaio delle bollette", Cifra(st.salvF, { col: K.verde })) : null,
           RigaVoce(e("span", null, "Fisse ancora da pagare"), Cifra(st.impegnato, { col: K.rosso })),
-          Math.abs(st.fuoriApp) > 0.004 ? RigaVoce("Movimenti fuori app", Cifra(st.fuoriApp, { segno: true })) : null,
+          Math.abs(st.fuoriApp) > 0.004 ? RigaVoce(
+          e("span", null, "Vecchi aggiustamenti ",
+            e("button", {
+              onClick: function () {
+                chiedi({
+                  tit: "Togliere gli aggiustamenti?",
+                  msg: "Sono correzioni vecchie da \u20AC" + M.eur(st.fuoriApp) + " che restano appese e falsano il saldo previsto. Tolte quelle, l'atteso torna a \u20AC" +
+                    M.eur(M.c2(st.attesoBanca - st.fuoriApp)) + " e puoi riallinearlo con una lettura.",
+                  conferma: "Togli", pericolo: true,
+                  onOk: function () {
+                    agisci(function (s2) {
+                      s2.ev.filter(function (x) { return x.t === "rett" && x.causa === "fuori"; })
+                        .forEach(function (x) { M.togliEv(s2, x.id); });
+                    });
+                  }
+                });
+              },
+              style: { background: "none", border: "1px solid " + K.riga, borderRadius: 3, color: K.rosso, fontSize: 10.5, fontFamily: SANS, padding: "2px 6px", cursor: "pointer" }
+            }, "togli")),
+          Cifra(st.fuoriApp, { segno: true })) : null,
           RigaVoce(e("b", null, "Tuoi da spendere fino alla paga"), Cifra(st.budget, { peso: 700, size: 16 }), { ultima: true })),
         e("div", { key: "s", style: { marginTop: 11, padding: "10px 12px", background: K.carta, borderRadius: 3, fontFamily: SANS, fontSize: 12, lineHeight: 1.6 } },
           e("b", null, "Non scendere sotto \u20AC" + M.eur(st.soglia) + "."), " \u00c8 il fondo cassa pi\u00f9 tutto quello che ci hai messo sopra e non hai ancora usato: sale ogni mese da solo, scende solo quando spendi davvero quei soldi.")
@@ -2295,7 +2339,10 @@ function App() {
         e("div", { key: "sep", style: { height: 8 } }),
         Voce("Speso nei giorni passati", -(sim.speso - g.speso), (g.idx) + (g.idx === 1 ? " giorno chiuso" : " giorni chiusi"), { k: "sp", col: K.rosso }),
         Voce("Speso oggi", -g.speso, "fino a questo momento", { k: "so", col: K.rosso }),
-        sim.tassa > 0.004 ? Voce("Messo nel salvadanaio", -sim.tassa, "\u20AC" + M.eur(store.imp.tassa) + " per ognuno dei " + sim.giorniOk + " giorni rispettati", { k: "ts", col: K.verde }) : null,
+        sim.tassa > 0.004 ? Voce("Messo nel salvadanaio", -sim.tassa,
+          sim.giorniOk + (sim.giorniOk === 1 ? " giorno pieno da \u20AC" : " giorni pieni da \u20AC") + M.eur(store.imp.tassa) +
+          (sim.giorniParziali > 0 ? (" + " + sim.giorniParziali + (sim.giorniParziali === 1 ? " giorno parziale" : " giorni parziali")) : ""),
+          { k: "ts", col: K.verde }) : null,
         sim.dist > 0.004 ? Voce("Ripreso dal salvadanaio", sim.dist, "riportato nel budget", { k: "ds", col: K.verde, segno: true }) : null,
         Math.abs(sim.rett) > 0.004 ? Voce("Rettifiche sul budget", sim.rett, "differenze attribuite al mese", { k: "rt", segno: true }) : null,
         Somma("Ti restano fino alla paga", sim.residuo, sim.residuo >= 0 ? K.inchiostro : K.rosso),
@@ -2311,7 +2358,7 @@ function App() {
         Voce("Intoccabile (punto 1)", st.soglia, "fondo cassa, buste, salvadanai", { k: "p1" }),
         Voce("Fisse da pagare (punto 2)", sim.impegnato, "sul conto, ma gi\u00e0 impegnate", { k: "p2", col: K.ottone }),
         Voce("Budget che ti resta (punto 3)", sim.budget != null ? st.budget : sim.residuo, "gli unici soldi davvero tuoi da spendere", { k: "p3" }),
-        Math.abs(st.fuoriApp) > 0.004 ? Voce("Movimenti fuori app", st.fuoriApp, "differenze che hai attribuito al conto, non al budget", { k: "p4", segno: true }) : null,
+        Math.abs(st.fuoriApp) > 0.004 ? Voce("Vecchi aggiustamenti", st.fuoriApp, "correzioni rimaste appese: puoi toglierle dal riquadro \u201cDi chi sono quei soldi\u201d", { k: "p4", segno: true, col: K.rosso }) : null,
         Somma("Sul conto dovrebbero esserci", st.attesoBanca, K.inchiostro),
         e("div", { key: "n4", style: { marginTop: 8, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.65 } },
           "Nessuno di questi numeri \u00e8 memorizzato: nascono tutti dai " + store.ev.length + " movimenti del registro. Se ne cancelli uno, l'intero prospetto si rif\u00e0 da capo.")
@@ -2547,7 +2594,7 @@ function App() {
         e("span", null, "ciclo " + M.lbl(sim.ciclo.ini) + " \u2192 " + M.lbl(sim.ciclo.fin)),
         e("span", null, "giorno " + (sim.oggiG.idx + 1) + " di " + sim.giorniTot + " \u00b7 ne restano " + sim.oggiG.rimasti))),
 
-    schede[tab](),
+    e("div", { key: "scheda-" + tab }, schede[tab]()),
 
     /* barra di navigazione */
     e("div", {
