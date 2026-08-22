@@ -492,8 +492,16 @@ var M = (function () {
   /* ============================================================
      BUSTE — quota del mese, ricalcolata sul residuo
      ============================================================ */
+  /* Tre modi di usare una busta:
+     - "scadenza": una spesa grossa a data nota, la quota e' quello che manca diviso i mesi
+     - "continua": metti via una cifra fissa ogni mese e si accumula senza fine
+     - "mensile":  metti via una cifra fissa e si rinnova a ogni paga; quello che avanza
+                   non resta in busta, passa nel salvadanaio                                */
+  function tipoBusta(b) { return b.tipo || (b.scad ? "scadenza" : "continua"); }
+
   function quotaBusta(b, rifTs) {
     if (!b.attiva) return 0;
+    if (b.tipo === "mensile") return c2(b.quota || 0);
     if (!b.scad) return b.quota || 0;                 // fondo continuo
     var manca = Math.max(0, (b.obiettivo || 0) - Math.max(0, b.acc || 0));
     var mesi = 0, d = new Date(rifTs);
@@ -528,14 +536,17 @@ var M = (function () {
   // di quel ciclo, cosi' resta stabile per tutto il mese e non si muove sotto i piedi.
   function pianoQuote(store, lista, oggi) {
     var mov = movBuste(store);
-    var quote = [], accFin = {};
-    var accBase = {};
-    store.buste.forEach(function (b) { accBase[b.id] = 0; accFin[b.id] = 0; });
+    var quote = [], accFin = {}, rilasciati = 0;
     var cumQuote = {};
-    store.buste.forEach(function (b) { cumQuote[b.id] = 0; });
+    store.buste.forEach(function (b) { cumQuote[b.id] = 0; accFin[b.id] = 0; });
     for (var i = 0; i < lista.length; i++) {
       var c = lista[i], q = {};
       store.buste.forEach(function (b) {
+        if (tipoBusta(b) === "mensile") {
+          // ogni ciclo riparte da zero: la quota e' sempre la stessa
+          q[b.id] = (c.ini <= oggi && b.attiva) ? c2(b.quota || 0) : 0;
+          return;
+        }
         var movPrima = mov.filter(function (m) { return m.b === b.id && m.t < c.ini; })
           .reduce(function (a, m) { return a + m.imp; }, 0);
         // Una correzione fatta a mano DENTRO il ciclo vale subito: se dici che da parte
@@ -545,17 +556,33 @@ var M = (function () {
           return m.b === b.id && m.corr && m.t >= c.ini && m.t <= Math.min(oggi, c.fin);
         }).reduce(function (a, m) { return a + m.imp; }, 0);
         var accAp = c2(cumQuote[b.id] + movPrima + corrDentro);
-        var bb = { attiva: b.attiva, scad: scadBusta(store, b), obiettivo: b.obiettivo, quota: b.quota, acc: accAp };
+        var bb = { attiva: b.attiva, tipo: b.tipo, scad: scadBusta(store, b), obiettivo: b.obiettivo, quota: b.quota, acc: accAp };
         q[b.id] = (c.ini <= oggi) ? quotaBusta(bb, c.ini) : 0;
         cumQuote[b.id] = c2(cumQuote[b.id] + q[b.id]);
       });
       quote.push(q);
     }
+    function movDentro(bid, c) {
+      return mov.filter(function (m) { return m.b === bid && m.t >= c.ini && m.t <= c.fin; })
+        .reduce(function (a, m) { return a + m.imp; }, 0);
+    }
     store.buste.forEach(function (b) {
+      if (tipoBusta(b) === "mensile") {
+        var acc = 0;
+        for (var k = 0; k < lista.length; k++) {
+          var c = lista[k];
+          if (c.ini > oggi) continue;
+          var resto = c2((quote[k][b.id] || 0) + movDentro(b.id, c));
+          if (oggi > c.fin) rilasciati = c2(rilasciati + Math.max(0, resto));  // ciclo chiuso: quello che avanza va nel salvadanaio
+          else acc = resto;                                                    // ciclo in corso: e' quello che hai ancora in busta
+        }
+        accFin[b.id] = acc;
+        return;
+      }
       var movTot = mov.filter(function (m) { return m.b === b.id; }).reduce(function (a, m) { return a + m.imp; }, 0);
       accFin[b.id] = c2(cumQuote[b.id] + movTot);
     });
-    return { quote: quote, acc: accFin };
+    return { quote: quote, acc: accFin, rilasciati: c2(rilasciati) };
   }
 
   /* ============================================================
@@ -661,7 +688,7 @@ var M = (function () {
     var piano = pianoQuote(store, lista, oggi);
     var accCorrente = piano.acc;
 
-    var salv = 0, salvF = 0, chiusi = [];
+    var salv = c2(piano.rilasciati || 0), salvF = 0, chiusi = [];
     var corrente = null, simCorrente = null;
     for (var i = 0; i < lista.length; i++) {
       var c = lista[i];
@@ -1044,7 +1071,7 @@ var M = (function () {
     lbl: lbl, lblLungo: lblLungo, lblGiorno: lblGiorno,
     c2: c2, eur: eur, eur0: eur0, id: id,
     nuovoStore: nuovoStore, ev: ev, togliEv: togliEv,
-    cicli: cicli, statoFisse: statoFisse, quotaBusta: quotaBusta, simula: simula,
+    cicli: cicli, statoFisse: statoFisse, quotaBusta: quotaBusta, tipoBusta: tipoBusta, simula: simula,
     pianoQuote: pianoQuote, scadBusta: scadBusta, pagaBusta: pagaBusta,
     stato: stato, oggiVista: oggiVista, inGiorni: inGiorni,
     previsione: previsione, pagheDoppie: pagheDoppie, evTs: evTs,
@@ -1055,6 +1082,308 @@ var M = (function () {
   };
 })();
 
+
+/* ============================================================
+   DIAGNOSTICA — passa in rassegna tutto quello che hai inserito
+   e segnala le incoerenze, con il dettaglio dei numeri e, dove
+   possibile, la correzione da applicare.
+   Ogni problema ha un codice stabile: se lo ignori, resta ignorato.
+   ============================================================ */
+M.diagnostica = function (store, oggi) {
+  var c2 = M.c2, eur = M.eur, ts = M.ts, iso = M.iso, lbl = M.lbl, lblLungo = M.lblLungo;
+  oggi = oggi || M.oggiTs();
+  var st = M.stato(store, oggi);
+  var P = st.sim ? M.previsione(store, oggi, st) : null;
+  var out = [];
+  var ignorati = store.ignorati || [];
+
+  function segnala(o) {
+    if (ignorati.indexOf(o.cod) >= 0) { o.ignorato = true; }
+    out.push(o);
+  }
+  var GRAVE = "grave", ATT = "attenzione", NOTA = "nota";
+
+  /* ---------- 1. IMPOSTAZIONI DI BASE ---------- */
+  if (!(store.imp.stip > 0)) segnala({
+    cod: "imp-stip", liv: GRAVE, are: "Impostazioni", tit: "Stipendio non impostato",
+    det: ["Senza lo stipendio il budget giornaliero non pu\u00f2 essere calcolato."],
+    dove: "Altro \u2192 Impostazioni"
+  });
+  if (!(st.fc > 0)) segnala({
+    cod: "imp-fc", liv: ATT, are: "Impostazioni", tit: "Fondo cassa a zero",
+    det: ["Tutto il saldo risulta spendibile: la soglia da non toccare \u00e8 \u20AC0,00."],
+    dove: "Altro \u2192 Impostazioni"
+  });
+  if (!(store.imp.tassa > 0)) segnala({
+    cod: "imp-tassa", liv: NOTA, are: "Impostazioni", tit: "Nessun risparmio giornaliero",
+    det: ["La tassa di risparmio \u00e8 a zero: il salvadanaio non cresce."],
+    dove: "Altro \u2192 Impostazioni"
+  });
+  if (store.imp.prevista && st.ciclo && ts(store.imp.prevista) <= st.ciclo.ini) segnala({
+    cod: "imp-prevista", liv: ATT, are: "Impostazioni", tit: "Data prevista incoerente",
+    det: ["La paga prevista (" + lblLungo(ts(store.imp.prevista)) + ") non \u00e8 successiva a quella arrivata (" + lblLungo(st.ciclo.ini) + ")."],
+    fix: { lbl: "Togli la data prevista", azione: function (s) { s.imp.prevista = null; } }
+  });
+
+  /* ---------- 2. LE PAGHE ---------- */
+  var pd = M.pagheDoppie(store);
+  if (pd.scartate.length) segnala({
+    cod: "paga-doppia", liv: GRAVE, are: "Paghe", tit: pd.scartate.length + (pd.scartate.length === 1 ? " paga registrata due volte" : " paghe registrate due volte"),
+    det: pd.scartate.map(function (x) { return "\u20AC" + eur(x.imp) + " del " + lblLungo(ts(x.d)) + " \u2014 la sto gi\u00e0 ignorando"; })
+      .concat(["Se restassero contate, raddoppierebbero stipendio, quote e saldo previsto."]),
+    fix: { lbl: "Cancella i doppioni", azione: function (s) { pd.scartate.forEach(function (x) { M.togliEv(s, x.id); }); } }
+  });
+  var paghe = pd.buone;
+  paghe.forEach(function (p, i) {
+    if (store.imp.stip > 0 && Math.abs(p.imp - store.imp.stip) > store.imp.stip * 0.35) segnala({
+      cod: "paga-strana-" + p.id, liv: ATT, are: "Paghe", tit: "Paga molto diversa dal solito",
+      det: ["\u20AC" + eur(p.imp) + " del " + lblLungo(ts(p.d)) + ", contro \u20AC" + eur(store.imp.stip) + " impostati.",
+        "Se \u00e8 giusta va bene: se \u00e8 un errore di battitura falsa tutto il ciclo."]
+    });
+    if (i > 0) {
+      var vuoto = M.giorniTra(ts(paghe[i - 1].d), ts(p.d));
+      if (vuoto > 45) segnala({
+        cod: "paga-buco-" + p.id, liv: ATT, are: "Paghe", tit: "Salto fra due paghe",
+        det: [vuoto + " giorni fra il " + lbl(ts(paghe[i - 1].d)) + " e il " + lbl(ts(p.d)) + ".",
+          "Probabilmente manca una paga: le quote di quel mese non sono state accantonate."]
+      });
+    }
+  });
+  if (paghe.length && st.ciclo && oggi > st.ciclo.fin) segnala({
+    cod: "paga-scaduta", liv: ATT, are: "Paghe", tit: "Ciclo finito",
+    det: ["L'ultimo ciclo si \u00e8 chiuso il " + lblLungo(st.ciclo.fin) + ". Finch\u00e9 non registri la paga i budget restano fermi."]
+  });
+
+  /* ---------- 3. I MOVIMENTI ---------- */
+  var spese = store.ev.filter(function (e) { return e.t === "spesa" || e.t === "fissa"; });
+  var futuri = spese.filter(function (e) { return ts(e.d) > oggi; });
+  if (futuri.length) segnala({
+    cod: "mov-futuri", liv: ATT, are: "Movimenti", tit: futuri.length + (futuri.length === 1 ? " movimento con data futura" : " movimenti con data futura"),
+    det: futuri.slice(0, 6).map(function (x) { return "\u20AC" + eur(x.imp) + " datato " + lblLungo(ts(x.d)) + (x.nota ? (" \u2014 " + x.nota) : ""); }),
+    fix: {
+      lbl: "Riportali a oggi", azione: function (s) {
+        s.ev = s.ev.map(function (y) { return (ts(y.d) > oggi && (y.t === "spesa" || y.t === "fissa")) ? Object.assign({}, y, { d: iso(oggi) }) : y; });
+      }
+    }
+  });
+  var primaPaga = paghe.length ? ts(paghe[0].d) : null;
+  if (primaPaga) {
+    var orfani = spese.filter(function (e) { return ts(e.d) < primaPaga; });
+    if (orfani.length) segnala({
+      cod: "mov-orfani", liv: NOTA, are: "Movimenti", tit: orfani.length + (orfani.length === 1 ? " movimento fuori da ogni ciclo" : " movimenti fuori da ogni ciclo"),
+      det: ["Sono datati prima della prima paga (" + lblLungo(primaPaga) + "): nessun budget li conta.",
+        "Totale \u20AC" + eur(orfani.reduce(function (a, x) { return a + x.imp; }, 0)) + "."]
+    });
+  }
+  var zeri = spese.filter(function (e) { return !(e.imp > 0); });
+  if (zeri.length) segnala({
+    cod: "mov-zero", liv: NOTA, are: "Movimenti", tit: zeri.length + (zeri.length === 1 ? " movimento a zero" : " movimenti a zero"),
+    det: ["Non incidono su nulla, ma sporcano la cronologia."],
+    fix: { lbl: "Cancellali", azione: function (s) { zeri.forEach(function (x) { M.togliEv(s, x.id); }); } }
+  });
+  // gemelli: stesso importo, stesso giorno, stessa voce, inseriti a pochi minuti
+  var gemelli = [];
+  for (var i = 0; i < spese.length; i++) {
+    for (var j = i + 1; j < spese.length; j++) {
+      var a = spese[i], b = spese[j];
+      if (Math.abs(a.imp - b.imp) > 0.004 || a.d !== b.d) continue;
+      if ((a.cat || "") !== (b.cat || "") || (a.fissaId || "") !== (b.fissaId || "")) continue;
+      if (Math.abs(M.evTs(a) - M.evTs(b)) > 10 * 60000) continue;
+      gemelli.push(b);
+    }
+  }
+  if (gemelli.length) segnala({
+    cod: "mov-gemelli", liv: ATT, are: "Movimenti", tit: gemelli.length + (gemelli.length === 1 ? " spesa forse doppia" : " spese forse doppie"),
+    det: gemelli.slice(0, 6).map(function (x) { return "\u20AC" + eur(x.imp) + " del " + lbl(ts(x.d)) + " (" + (x.nota || x.cat || "spesa") + ") registrata due volte a pochi minuti"; })
+      .concat(["Capita con due telefoni che si sincronizzano o con un tocco di troppo."]),
+    fix: { lbl: "Cancella i doppioni", azione: function (s) { gemelli.forEach(function (x) { M.togliEv(s, x.id); }); } }
+  });
+  // legami rotti
+  var idFisse = {}; store.fisse.forEach(function (f) { idFisse[f.id] = 1; });
+  var idBuste = {}; store.buste.forEach(function (b) { idBuste[b.id] = 1; });
+  var rotte = spese.filter(function (e) { return e.fissaId && !idFisse[e.fissaId]; });
+  if (rotte.length) segnala({
+    cod: "mov-fissa-rotta", liv: ATT, are: "Movimenti", tit: rotte.length + " movimenti legati a voci fisse cancellate",
+    det: ["Totale \u20AC" + eur(rotte.reduce(function (a, x) { return a + x.imp; }, 0)) + ". Restano fuori da ogni previsione."],
+    fix: {
+      lbl: "Trasformali in spese normali", azione: function (s) {
+        s.ev = s.ev.map(function (y) { return (y.fissaId && !idFisse[y.fissaId]) ? Object.assign({}, y, { fissaId: null, cat: y.cat || "Altro" }) : y; });
+      }
+    }
+  });
+  var busteRotte = store.ev.filter(function (e) {
+    return e.t === "spesa" && e.fonte && e.fonte.indexOf("busta:") === 0 && !idBuste[e.fonte.slice(6)];
+  });
+  if (busteRotte.length) segnala({
+    cod: "mov-busta-rotta", liv: ATT, are: "Movimenti", tit: busteRotte.length + " prelievi da buste cancellate",
+    det: ["Totale \u20AC" + eur(busteRotte.reduce(function (a, x) { return a + x.imp; }, 0)) + "."],
+    fix: {
+      lbl: "Trasformali in spese normali", azione: function (s) {
+        s.ev = s.ev.map(function (y) {
+          return (y.t === "spesa" && y.fonte && y.fonte.indexOf("busta:") === 0 && !idBuste[y.fonte.slice(6)])
+            ? Object.assign({}, y, { fonte: "budget" }) : y;
+        });
+      }
+    }
+  });
+
+  /* ---------- 4. LE VOCI FISSE ---------- */
+  if (st.sim) {
+    st.sim.fisse.forEach(function (r) {
+      var f = r.f;
+      if (!(f.prev > 0)) segnala({
+        cod: "fissa-zero-" + f.id, liv: NOTA, are: "Spese fisse", tit: f.nome + ": previsione a zero",
+        det: ["Non pesa sul budget. Se \u00e8 una voce che usi, mettile un importo."],
+        dove: "Piano"
+      });
+      if (f.gg > 28) segnala({
+        cod: "fissa-gg-" + f.id, liv: NOTA, are: "Spese fisse", tit: f.nome + ": addebito il giorno " + f.gg,
+        det: ["Nei mesi corti quel giorno non esiste e la data slitta. Meglio un giorno fino al 28."],
+        dove: "Piano"
+      });
+      if (r.sforo > Math.max(20, f.prev * 0.4)) segnala({
+        cod: "fissa-sforo-" + f.id, liv: ATT, are: "Spese fisse", tit: f.nome + ": previsione troppo bassa",
+        det: ["Previsti \u20AC" + eur(f.prev) + ", spesi \u20AC" + eur(r.uscito) + " (\u20AC" + eur(r.sforo) + " oltre).",
+          "Alzare la previsione evita che il budget prometta soldi che non ci sono."],
+        fix: {
+          lbl: "Porta la previsione a \u20AC" + eur(r.uscito),
+          azione: function (s) { s.fisse = s.fisse.map(function (x) { return x.id === f.id ? Object.assign({}, x, { prev: c2(r.uscito) }) : x; }); }
+        }
+      });
+    });
+    var totFisse = st.sim.fissePesano + st.sim.quote;
+    if (st.ciclo && st.ciclo.stip > 0 && totFisse > st.ciclo.stip) segnala({
+      cod: "fisse-oltre", liv: GRAVE, are: "Spese fisse", tit: "Le fisse superano lo stipendio",
+      det: ["Fisse e quote \u20AC" + eur(totFisse) + " contro uno stipendio di \u20AC" + eur(st.ciclo.stip) + ".",
+        "Il disponibile per vivere risulta negativo: qualche previsione \u00e8 sbagliata, oppure serve tagliare."]
+    });
+  }
+
+  /* ---------- 5. LE BUSTE ---------- */
+  store.buste.forEach(function (b) {
+    var acc = st.acc[b.id] || 0;
+    var q = st.sim ? (st.sim.quotePer[b.id] || 0) : 0;
+    var sc = M.scadBusta(store, b);
+    if (acc < -0.004) segnala({
+      cod: "busta-neg-" + b.id, liv: GRAVE, are: "Buste", tit: b.nome + ": accantonato negativo",
+      det: ["Risulta \u20AC" + eur(acc) + ". Hai prelevato pi\u00f9 di quanto c'era."],
+      fix: { lbl: "Riportalo a zero", azione: function (s) { M.ev(s, { t: "corr", dove: "busta:" + b.id, imp: c2(-acc), d: iso(oggi), nota: b.nome }); } }
+    });
+    if (M.tipoBusta(b) === "scadenza" && b.obiettivo > 0 && acc > b.obiettivo + 0.004) segnala({
+      cod: "busta-oltre-" + b.id, liv: NOTA, are: "Buste", tit: b.nome + ": accantonato oltre l'obiettivo",
+      det: ["Da parte \u20AC" + eur(acc) + " su un obiettivo di \u20AC" + eur(b.obiettivo) + ".",
+        "La quota mensile \u00e8 gi\u00e0 scesa a zero: i soldi in pi\u00f9 restano fermi l\u00ec."]
+    });
+    if (M.tipoBusta(b) === "scadenza" && sc && sc < oggi) segnala({
+      cod: "busta-scaduta-" + b.id, liv: ATT, are: "Buste", tit: b.nome + ": scadenza passata",
+      det: ["Doveva servire il " + lblLungo(sc) + " e ha ancora \u20AC" + eur(acc) + " da parte.",
+        "Se l'hai pagata, registralo dal Piano: la busta si rinnova da sola."],
+      dove: "Piano"
+    });
+    var tipo = M.tipoBusta(b);
+    if (tipo !== "scadenza" && !(b.quota > 0)) segnala({
+      cod: "busta-ferma-" + b.id, liv: NOTA, are: "Buste", tit: b.nome + ": non accumula nulla",
+      det: [tipo === "mensile" ? "Busta mensile senza importo: non riserva niente."
+        : "Nessuna scadenza e nessuna quota fissa: la busta resta ferma."],
+      dove: "Piano"
+    });
+    if (tipo === "scadenza" && !sc) segnala({
+      cod: "busta-nodata-" + b.id, liv: ATT, are: "Buste", tit: b.nome + ": manca la scadenza",
+      det: ["È una busta a scadenza ma non ha una data: la quota mensile non si può calcolare."],
+      dove: "Piano"
+    });
+    if (st.ciclo && st.ciclo.stip > 0 && q > st.ciclo.stip * 0.4) segnala({
+      cod: "busta-quota-" + b.id, liv: ATT, are: "Buste", tit: b.nome + ": quota mensile molto alta",
+      det: ["\u20AC" + eur(q) + " al mese su uno stipendio di \u20AC" + eur(st.ciclo.stip) + ".",
+        "Con una scadenza pi\u00f9 lontana la quota si abbassa."],
+      dove: "Piano"
+    });
+  });
+
+  /* ---------- 6. I RISPARMI ---------- */
+  if (st.salv < -0.004) segnala({
+    cod: "salv-neg", liv: GRAVE, are: "Risparmi", tit: "Salvadanaio negativo",
+    det: ["Risulta \u20AC" + eur(st.salv) + "."],
+    fix: { lbl: "Riportalo a zero", azione: function (s) { M.ev(s, { t: "corr", dove: "salv", imp: c2(-st.salv), d: iso(oggi) }); } }
+  });
+  if (st.salvF < -0.004) segnala({
+    cod: "salvf-neg", liv: ATT, are: "Risparmi", tit: "Risparmio dalle fisse negativo",
+    det: ["Risulta \u20AC" + eur(st.salvF) + "."],
+    fix: { lbl: "Riportalo a zero", azione: function (s) { M.ev(s, { t: "corr", dove: "salvF", imp: c2(-st.salvF), d: iso(oggi) }); } }
+  });
+  if (st.sim && store.imp.tassa > 0) {
+    var maxTeorico = c2(store.imp.tassa * (st.sim.oggiG ? st.sim.oggiG.idx : 0));
+    if (st.salvOra > maxTeorico + 0.05) segnala({
+      cod: "salv-troppo", liv: ATT, are: "Risparmi", tit: "Risparmio del mese pi\u00f9 alto del possibile",
+      det: ["Risulta \u20AC" + eur(st.salvOra) + ", ma con \u20AC" + eur(store.imp.tassa) + " al giorno per " +
+        (st.sim.oggiG ? st.sim.oggiG.idx : 0) + " giorni chiusi il massimo sarebbe \u20AC" + eur(maxTeorico) + "."]
+    });
+  }
+
+  /* ---------- 7. IL CONTO ---------- */
+  if (Math.abs(st.fuoriApp) > 0.004) segnala({
+    cod: "conto-plug", liv: GRAVE, are: "Conto", tit: "Vecchi aggiustamenti appesi",
+    det: ["\u20AC" + eur(st.fuoriApp) + " di correzioni registrate come \u201cmovimenti fuori app\u201d.",
+      "Restano per sempre e falsano il saldo previsto: senza di loro l'atteso sarebbe \u20AC" + eur(c2(st.attesoBanca - st.fuoriApp)) + "."],
+    fix: {
+      lbl: "Toglili", azione: function (s) {
+        s.ev.filter(function (x) { return x.t === "rett" && x.causa === "fuori"; }).forEach(function (x) { M.togliEv(s, x.id); });
+      }
+    }
+  });
+  var letture = store.ev.filter(function (e) { return e.t === "lettura"; });
+  if (!letture.length) segnala({
+    cod: "conto-mai-letto", liv: ATT, are: "Conto", tit: "Nessun estratto conto registrato",
+    det: ["Senza una lettura vera il saldo \u00e8 solo una stima, e non c'\u00e8 modo di accorgersi di quello che sfugge."],
+    dove: "Conto"
+  });
+  else {
+    var ultima = st.ultimaLettura;
+    var eta = M.giorniTra(ts(ultima.d), oggi);
+    if (eta > 12) segnala({
+      cod: "conto-vecchio", liv: NOTA, are: "Conto", tit: "Ultima lettura di " + eta + " giorni fa",
+      det: ["Registrata il " + lblLungo(ts(ultima.d)) + ". Pi\u00f9 passa il tempo, pi\u00f9 lo scostamento si accumula."],
+      dove: "Conto"
+    });
+    var scarto = c2(ultima.saldo - st.attesoBanca);
+    if (Math.abs(scarto) > 2) segnala({
+      cod: "conto-scarto", liv: Math.abs(scarto) > 50 ? GRAVE : ATT, are: "Conto",
+      tit: (scarto > 0 ? "In banca c'\u00e8 pi\u00f9 del previsto" : "In banca c'\u00e8 meno del previsto") + ": \u20AC" + eur(Math.abs(scarto)),
+      det: ["Letto \u20AC" + eur(ultima.saldo) + " il " + lblLungo(ts(ultima.d)) + ", il registro si aspettava \u20AC" + eur(st.attesoBanca) + ".",
+        "Finch\u00e9 lo scarto resta aperto, il netto e il budget raccontano storie diverse."],
+      fix: {
+        lbl: "Allinea il fondo cassa a \u20AC" + eur(c2(st.fc + scarto)),
+        azione: function (s) { M.fissaFondoCassa(s, c2(st.fc + scarto), "allineato alla lettura del " + lblLungo(ts(ultima.d))); }
+      }
+    });
+    var fut = letture.filter(function (e) { return ts(e.d) > oggi; });
+    if (fut.length) segnala({
+      cod: "conto-futuro", liv: ATT, are: "Conto", tit: "Letture con data futura",
+      det: fut.map(function (x) { return "\u20AC" + eur(x.saldo) + " datata " + lblLungo(ts(x.d)); }),
+      fix: { lbl: "Cancellale", azione: function (s) { fut.forEach(function (x) { M.togliEv(s, x.id); }); } }
+    });
+  }
+
+  /* ---------- 8. LA PROVA DEL NOVE ---------- */
+  var somma = c2(st.fc + st.accTot + st.salv + st.salvF + st.impegnato + st.budget + st.fuoriApp);
+  if (Math.abs(somma - st.attesoBanca) > 0.02) segnala({
+    cod: "quadratura", liv: GRAVE, are: "Coerenza", tit: "I conti interni non quadrano",
+    det: ["Somma delle voci \u20AC" + eur(somma) + " contro saldo atteso \u20AC" + eur(st.attesoBanca) + ".",
+      "Non dovrebbe mai succedere: se lo vedi, \u00e8 un errore dell'app, non tuo."]
+  });
+  if (P && st.sim) {
+    var diff = c2(P.netto - st.budget);
+    if (Math.abs(diff) > 2) segnala({
+      cod: "netto-budget", liv: ATT, are: "Coerenza", tit: "Netto e budget non coincidono",
+      det: ["Il netto calcolato dall'estratto conto \u00e8 \u20AC" + eur(P.netto) + ", quello del registro \u20AC" + eur(st.budget) + " (differenza \u20AC" + eur(Math.abs(diff)) + ").",
+        "\u00c8 sempre lo scarto con la banca che non \u00e8 stato attribuito."]
+    });
+  }
+
+  var ordine = { grave: 0, attenzione: 1, nota: 2 };
+  out.sort(function (a, b) { return ordine[a.liv] - ordine[b.liv]; });
+  return out;
+};
 
 </script>
 <script>
@@ -1302,6 +1631,8 @@ function App() {
   var _cfgBin = us(""), cfgBin = _cfgBin[0], setCfgBin = _cfgBin[1];
   var _det = us(false), det = _det[0], setDet = _det[1];
   var _fant = us(false), fant = _fant[0], setFant = _fant[1];
+  var _diag = us(false), diag = _diag[0], setDiag = _diag[1];
+  var _apDiag = us({}), apDiag = _apDiag[0], setApDiag = _apDiag[1];
   var primo = ur(true);
 
   ue(function () { salva(store); }, [store]);
@@ -1899,6 +2230,7 @@ function App() {
             return y.t === "rinnova" && y.bustaId === b.id && M.ts(y.d) >= sim.ciclo.ini && M.ts(y.d) <= sim.ciclo.fin;
           });
           var pagataOra = pagate.length > 0;
+          var tipo = M.tipoBusta(b);
           var perc = b.obiettivo > 0 ? Math.min(100, acc / b.obiettivo * 100) : 0;
           return Scheda([
             e("div", { key: "t", style: { display: "flex", alignItems: "center", gap: 9 } },
@@ -1907,17 +2239,26 @@ function App() {
                 e("div", { style: Object.assign({ fontFamily: SANS, fontSize: 14, fontWeight: 600 }, pagataOra ? { textDecoration: "line-through", color: K.tenue } : {}) }, b.nome),
                 e("div", { style: { fontFamily: SANS, fontSize: 11, color: pagataOra ? K.verde : K.tenue } },
                   pagataOra ? ("\u2713 pagata il " + M.lbl(M.ts(pagate[pagate.length - 1].d)) + " \u00b7 riparte per il " + M.lbl(sc))
-                    : (sc ? ("scade il " + M.lblLungo(sc)) : "fondo continuo"))),
+                    : (tipo === "mensile" ? ("\u20AC" + M.eur(b.quota || 0) + " al mese \u00b7 si rinnova a ogni paga")
+                      : (tipo === "continua" ? ("\u20AC" + M.eur(b.quota || 0) + " al mese \u00b7 si accumula senza fine")
+                        : ("scade il " + M.lblLungo(sc)))))),
               e("div", { style: { textAlign: "right" } },
                 Cifra(acc, { size: 17, peso: 700, col: K.ottone }),
                 b.obiettivo > 0 ? e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue } }, "su \u20AC" + M.eur0(b.obiettivo)) : null)),
-            b.obiettivo > 0 ? e("div", { key: "p", style: { height: 5, background: K.riga, borderRadius: 2, marginTop: 9 } },
-              e("div", { style: { width: perc + "%", height: "100%", background: K.ottone, borderRadius: 2 } })) : null,
-            e("div", { key: "q", style: { marginTop: 10 } },
+            (tipo === "mensile" && (b.quota || 0) > 0) ? e("div", { key: "p", style: { height: 5, background: K.riga, borderRadius: 2, marginTop: 9 } },
+              e("div", { style: { width: Math.min(100, Math.max(0, acc / b.quota * 100)) + "%", height: "100%", background: K.ottone, borderRadius: 2 } }))
+              : (b.obiettivo > 0 ? e("div", { key: "p", style: { height: 5, background: K.riga, borderRadius: 2, marginTop: 9 } },
+                e("div", { style: { width: perc + "%", height: "100%", background: K.ottone, borderRadius: 2 } })) : null),
+            tipo === "mensile" ? e("div", { key: "q", style: { marginTop: 10 } },
+              RigaVoce("Messo via questo mese", Cifra(quota, { size: 13, col: K.ottone })),
+              RigaVoce("Ancora in busta", Cifra(acc, { size: 13, col: acc > 0.004 ? K.ottone : K.tenue }), { ultima: true }),
+              e("div", { style: { marginTop: 6, fontFamily: SANS, fontSize: 10.5, color: K.tenue, lineHeight: 1.55, fontStyle: "italic" } },
+                "Alla prossima paga la busta riparte da \u20AC" + M.eur(b.quota || 0) + ": quello che avanza passa nel salvadanaio, non si accumula qui.")
+            ) : e("div", { key: "q", style: { marginTop: 10 } },
               RigaVoce("Accumulato nei mesi scorsi", Cifra(M.c2(acc - quota), { size: 13, col: K.ottone })),
               RigaVoce("Quota di questo mese", quota > 0.004 ? Cifra(quota, { size: 13, col: K.ottone }) :
                 e("span", { style: { fontFamily: SANS, fontSize: 12, color: K.tenue } }, "nessuna"), { ultima: true }),
-              (b.obiettivo > 0.004 && sc) ? e("div", { style: { marginTop: 6, fontFamily: SANS, fontSize: 10.5, color: K.tenue, lineHeight: 1.55, fontStyle: "italic" } },
+              (b.obiettivo > 0.004 && sc && tipo === "scadenza") ? e("div", { style: { marginTop: 6, fontFamily: SANS, fontSize: 10.5, color: K.tenue, lineHeight: 1.55, fontStyle: "italic" } },
                 (function () {
                   var manca = Math.max(0, b.obiettivo - Math.max(0, M.c2(acc - quota)));
                   var mesi = 0, d = new Date(sim.ciclo.ini);
@@ -2019,11 +2360,27 @@ function App() {
   }
   function modificaBusta(b) {
     var sc = M.scadBusta(store, b);
+    var tp = M.tipoBusta(b);
+    var etichette = { scadenza: "a scadenza", continua: "sempre aperta", mensile: "mensile, si rinnova" };
     chiedi({
-      tit: b.nome,
-      msg: "Quanto devi arrivare a mettere da parte in tutto?",
-      input: "numero", valore: String(b.obiettivo || 0), conferma: "Salva l'importo",
+      tit: b.nome + " \u00b7 " + etichette[tp],
+      msg: tp === "scadenza" ? "Quanto devi arrivare a mettere da parte in tutto?" : "Quanto vuoi metterci ogni mese?",
+      input: "numero", valore: String(tp === "scadenza" ? (b.obiettivo || 0) : (b.quota || 0)),
+      conferma: "Salva l'importo",
       extra: [
+        {
+          lbl: "Cambia il tipo di busta", fn: function () {
+            chiedi({
+              tit: "Che tipo deve diventare?",
+              msg: "Adesso \u00e8 " + etichette[tp] + ". Cambiando tipo cambia il modo di calcolare la quota.",
+              extra: [
+                { lbl: "\u{1F4C5} A scadenza", fn: function () { cambiaTipo(b, "scadenza"); } },
+                { lbl: "\u{1F4C8} Sempre aperta", fn: function () { cambiaTipo(b, "continua"); } },
+                { lbl: "\u{1F504} Mensile, si rinnova", fn: function () { cambiaTipo(b, "mensile"); } }
+              ]
+            });
+          }
+        },
         {
           lbl: "Cambia la scadenza" + (sc ? (" (ora " + M.lblLungo(sc) + ")") : ""), fn: function () {
             chiedi({
@@ -2057,12 +2414,42 @@ function App() {
       onOk: function (val) {
         var n = parseFloat(String(val).replace(",", "."));
         if (isNaN(n) || n < 0) return;
+        var vecchio = tp === "scadenza" ? (b.obiettivo || 0) : (b.quota || 0);
         chiedi({
-          tit: "Confermi?", msg: b.nome + ": obiettivo da \u20AC" + M.eur(b.obiettivo || 0) + " a \u20AC" + M.eur(n) + ".\nLa quota mensile verr\u00e0 ricalcolata.",
+          tit: "Confermi?",
+          msg: b.nome + ": da \u20AC" + M.eur(vecchio) + " a \u20AC" + M.eur(n) + ".\n" +
+            (tp === "scadenza" ? "La quota mensile verr\u00e0 ricalcolata su quello che manca." : "Da questo mese metterai via la nuova cifra."),
           conferma: "S\u00ec, salva",
           onOk: function () {
-            agisci(function (s2) { s2.buste = s2.buste.map(function (x) { return x.id === b.id ? Object.assign({}, x, { obiettivo: n }) : x; }); });
+            agisci(function (s2) {
+              s2.buste = s2.buste.map(function (x) {
+                if (x.id !== b.id) return x;
+                return tp === "scadenza" ? Object.assign({}, x, { obiettivo: n }) : Object.assign({}, x, { quota: n });
+              });
+            });
           }
+        });
+      }
+    });
+  }
+
+  function cambiaTipo(b, nuovo) {
+    var spiega = nuovo === "mensile"
+      ? "Ogni mese metterai via una cifra fissa e la busta ripartir\u00e0 da capo: quello che avanza passa nel salvadanaio."
+      : nuovo === "continua"
+        ? "Ogni mese metterai via una cifra fissa e resterà in busta finch\u00e9 non la usi."
+        : "Serve un obiettivo e una data: la quota sar\u00e0 quello che manca diviso i mesi che restano.";
+    chiedi({
+      tit: "Diventa " + (nuovo === "scadenza" ? "a scadenza" : nuovo === "continua" ? "sempre aperta" : "mensile") + "?",
+      msg: b.nome + "\n\n" + spiega, conferma: "S\u00ec, cambia",
+      onOk: function () {
+        agisci(function (s2) {
+          s2.buste = s2.buste.map(function (x) {
+            if (x.id !== b.id) return x;
+            var y = Object.assign({}, x, { tipo: nuovo });
+            if (nuovo !== "scadenza" && !(y.quota > 0)) y.quota = 0;
+            return y;
+          });
         });
       }
     });
@@ -2070,13 +2457,63 @@ function App() {
 
   function nuovaBusta() {
     chiedi({
-      tit: "Nuova busta", msg: "Come si chiama? (poi scrivi importo e scadenza)", input: "testo", conferma: "Crea",
+      tit: "Che tipo di busta?",
+      msg: "Scegli come deve comportarsi ogni mese.",
+      extra: [
+        {
+          lbl: "\u{1F4C5} A scadenza \u00b7 una spesa grossa a data nota",
+          fn: function () { creaBusta("scadenza"); }
+        },
+        {
+          lbl: "\u{1F4C8} Sempre aperta \u00b7 metti via e si accumula",
+          fn: function () { creaBusta("continua"); }
+        },
+        {
+          lbl: "\u{1F504} Mensile \u00b7 si rinnova a ogni paga",
+          fn: function () { creaBusta("mensile"); }
+        }
+      ]
+    });
+  }
+
+  function creaBusta(tipo) {
+    var spiega = tipo === "scadenza"
+      ? "Assicurazione, bollo, tasse: dimmi il nome, poi l'importo e la data. L'app divide quello che manca per i mesi che restano."
+      : tipo === "continua"
+        ? "Un fondo che cresce senza scadenza: metti via una cifra fissa ogni mese e resta l\u00ec finch\u00e9 non la usi."
+        : "Una cifra fissa che ti riservi ogni mese \u2014 spese mediche, regali, imprevisti. Alla paga dopo riparte da capo: quello che non usi passa nel salvadanaio.";
+    chiedi({
+      tit: "Nuova busta", msg: spiega, input: "testo", conferma: "Avanti",
       onOk: function (nome) {
         if (!nome) return;
-        agisci(function (s) {
-          s.buste = s.buste.concat([{ id: M.id(), nome: nome, icona: "\u2709\uFE0F", obiettivo: 0, scad: null, ric: 12, quota: 0, attiva: true }]);
+        chiedi({
+          tit: nome,
+          msg: tipo === "scadenza" ? "Quanto devi arrivare a mettere da parte in tutto?" : "Quanto vuoi metterci ogni mese?",
+          input: "numero", conferma: tipo === "scadenza" ? "Avanti" : "Crea la busta",
+          onOk: function (val) {
+            var n = parseFloat(String(val).replace(",", "."));
+            if (isNaN(n) || n < 0) return;
+            var nuova = {
+              id: M.id(), nome: nome, icona: tipo === "mensile" ? "\u{1F504}" : (tipo === "continua" ? "\u{1F4C8}" : "\u{1F4C5}"),
+              tipo: tipo, obiettivo: tipo === "scadenza" ? n : 0, scad: null, ric: tipo === "scadenza" ? 12 : 0,
+              quota: tipo === "scadenza" ? 0 : n, attiva: true
+            };
+            if (tipo !== "scadenza") {
+              agisci(function (s2) { s2.buste = s2.buste.concat([nuova]); });
+              return;
+            }
+            chiedi({
+              tit: nome, msg: "Quando servono i soldi? Scrivi la data in formato aaaa-mm-gg.",
+              input: "testo", valore: M.iso(M.piuMesi(oggi, 6)), conferma: "Crea la busta",
+              onOk: function (d) {
+                var t = M.ts(String(d).trim());
+                if (!t) return;
+                nuova.scad = t;
+                agisci(function (s2) { s2.buste = s2.buste.concat([nuova]); });
+              }
+            });
+          }
         });
-        setTab("piano");
       }
     });
   }
@@ -2386,6 +2823,89 @@ function App() {
   }
 
   /* ============================================================
+     SCHERMATA: CONTROLLO DEI DATI
+     ============================================================ */
+  function vistaDiagnosi() {
+    var problemi = M.diagnostica(store, oggi);
+    var attivi = problemi.filter(function (x) { return !x.ignorato; });
+    var messiDaParte = problemi.filter(function (x) { return x.ignorato; });
+    var COL = { grave: K.rosso, attenzione: K.ottone, nota: K.tenue };
+    var ETI = { grave: "da sistemare", attenzione: "da guardare", nota: "piccolezza" };
+
+    function riga(x) {
+      var aperto = !!apDiag[x.cod];
+      return e("div", { key: x.cod, style: { borderTop: "1px solid " + K.riga } },
+        e("button", {
+          onClick: function () { var m = Object.assign({}, apDiag); m[x.cod] = !aperto; setApDiag(m); },
+          style: { width: "100%", textAlign: "left", background: "none", border: "none", padding: "11px 0", cursor: "pointer", display: "flex", gap: 9, alignItems: "flex-start" }
+        },
+          e("span", { style: { width: 7, height: 7, borderRadius: 4, background: COL[x.liv], marginTop: 5, flexShrink: 0 } }),
+          e("span", { style: { flex: 1, minWidth: 0 } },
+            e("div", { style: { fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: K.inchiostro, lineHeight: 1.35 } }, x.tit),
+            e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 2 } },
+              x.are + " \u00b7 " + ETI[x.liv] + (x.fix ? " \u00b7 si pu\u00f2 correggere" : ""))),
+          e("span", { style: { color: K.blu, fontFamily: MONO, fontSize: 15, fontWeight: 700 } }, aperto ? "\u2212" : "+")),
+        aperto ? e("div", { style: { padding: "0 0 12px 16px" } },
+          x.det.map(function (r, i) {
+            return e("div", { key: i, style: { fontFamily: SANS, fontSize: 12, color: K.tenue, lineHeight: 1.6, marginBottom: 3 } }, r);
+          }),
+          x.dove ? e("div", { style: { fontFamily: SANS, fontSize: 11, color: K.blu, marginTop: 5 } }, "Si sistema da: " + x.dove) : null,
+          e("div", { style: { display: "flex", gap: 7, marginTop: 10, flexWrap: "wrap" } },
+            x.fix ? Bottone(x.fix.lbl, function () {
+              chiedi({
+                tit: "Confermi la correzione?",
+                msg: x.tit + "\n\n" + x.det.join("\n") + "\n\nCorrezione: " + x.fix.lbl,
+                conferma: "S\u00ec, correggi", pericolo: x.liv === "grave",
+                onOk: function () { agisci(function (s2) { x.fix.azione(s2); }); }
+              });
+            }, { largo: false, size: 12, pad: "8px 12px", col: COL[x.liv] === K.tenue ? K.inchiostro : COL[x.liv] }) : null,
+            Bottone("Va bene cos\u00ec", function () {
+              agisci(function (s2) { s2.ignorati = (s2.ignorati || []).concat([x.cod]); });
+            }, { vuoto: true, col: K.tenue, size: 12, pad: "8px 12px", largo: false }))
+        ) : null);
+    }
+
+    var conteggi = { grave: 0, attenzione: 0, nota: 0 };
+    attivi.forEach(function (x) { conteggi[x.liv]++; });
+
+    return e("div", null,
+      Scheda([
+        e("div", { key: "t", style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+          e("div", null,
+            Etichetta("Controllo del registro"),
+            e("div", { style: { fontFamily: SERIF, fontSize: 26, fontWeight: 700, marginTop: 3 } },
+              attivi.length === 0 ? "Tutto in ordine" : (attivi.length + (attivi.length === 1 ? " cosa da vedere" : " cose da vedere"))),
+            e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, marginTop: 3 } },
+              store.ev.length + " movimenti \u00b7 " + store.fisse.length + " voci fisse \u00b7 " + store.buste.length + " buste \u00b7 " + st.cicli.length + (st.cicli.length === 1 ? " ciclo" : " cicli"))),
+          Bottone("Chiudi", function () { setDiag(false); }, { vuoto: true, col: K.tenue, size: 12, pad: "7px 11px", largo: false })),
+        attivi.length ? e("div", { key: "c", style: { display: "flex", gap: 7, marginTop: 12 } },
+          [["grave", "da sistemare"], ["attenzione", "da guardare"], ["nota", "piccolezze"]].map(function (r) {
+            if (!conteggi[r[0]]) return null;
+            return e("div", { key: r[0], style: { flex: 1, textAlign: "center", padding: "8px 4px", border: "1px solid " + COL[r[0]], borderRadius: 3 } },
+              e("div", { style: { fontFamily: MONO, fontSize: 20, fontWeight: 700, color: COL[r[0]] } }, conteggi[r[0]]),
+              e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue } }, r[1]));
+          })) : null
+      ], { accento: conteggi.grave ? K.rosso : (conteggi.attenzione ? K.ottone : K.verde) }),
+
+      attivi.length ? Scheda(attivi.map(riga)) : Scheda([
+        e("div", { key: "v", style: { fontFamily: SANS, fontSize: 13, lineHeight: 1.65, color: K.tenue } },
+          "Ho passato in rassegna paghe, movimenti, voci fisse, buste, risparmi e letture del conto: non ho trovato incoerenze. La somma delle voci coincide con il saldo previsto.")
+      ], { accento: K.verde }),
+
+      messiDaParte.length ? e("div", null,
+        e("div", { style: { margin: "16px 0 6px" } }, Etichetta("Messi da parte da te")),
+        Scheda(messiDaParte.map(function (x) {
+          return e("div", { key: x.cod, style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid " + K.riga } },
+            e("span", { style: { fontFamily: SANS, fontSize: 12, color: K.tenue, flex: 1 } }, x.tit),
+            e("button", {
+              onClick: function () { agisci(function (s2) { s2.ignorati = (s2.ignorati || []).filter(function (c) { return c !== x.cod; }); }); },
+              style: { background: "none", border: "1px solid " + K.riga, borderRadius: 3, color: K.blu, fontSize: 10.5, fontFamily: SANS, padding: "3px 8px", cursor: "pointer" }
+            }, "rimetti"));
+        }))) : null
+    );
+  }
+
+  /* ============================================================
      SCHERMATA: ALTRO (storico, impostazioni, sync)
      ============================================================ */
   function vistaAltro() {
@@ -2545,25 +3065,7 @@ function App() {
             a.download = "registro-" + M.iso(oggi) + ".json";
             a.click();
           }, { vuoto: true, col: K.inchiostro, size: 12 }),
-          Bottone("Controlla i dati", function () {
-            var pd = M.pagheDoppie(store);
-            var righe = [];
-            righe.push(store.ev.length + " movimenti in tutto");
-            righe.push(st.cicli.length + (st.cicli.length === 1 ? " ciclo" : " cicli") + " di stipendio");
-            if (pd.scartate.length) righe.push("\u26A0 " + pd.scartate.length + " paghe doppie ignorate");
-            var letture = store.ev.filter(function (x) { return x.t === "lettura"; }).length;
-            righe.push(letture + (letture === 1 ? " lettura del conto" : " letture del conto"));
-            righe.push("contenitore: " + (jbBin() ? jbBin().slice(0, 8) + "\u2026" : "nessuno (solo questo telefono)"));
-            chiedi({
-              tit: "Stato del registro", msg: righe.join("\n"),
-              extra: pd.scartate.length ? [{
-                lbl: "Cancella le " + pd.scartate.length + " paghe doppie", pericolo: true,
-                fn: function () {
-                  agisci(function (s2) { pd.scartate.forEach(function (x) { M.togliEv(s2, x.id); }); });
-                }
-              }] : []
-            });
-          }, { vuoto: true, col: K.blu, size: 12 }),
+          Bottone("Controlla i dati", function () { setDiag(true); window.scrollTo(0, 0); }, { vuoto: true, col: K.blu, size: 12 }),
           Bottone("Ricomincia da zero", function () {
             chiedi({
               tit: "Cancellare tutto?", msg: "Sparisce l'intero registro di questo telefono. I dati della versione precedente restano al loro posto.",
@@ -2581,6 +3083,7 @@ function App() {
      STRUTTURA
      ============================================================ */
   var schede = { oggi: vistaOggi, spese: vistaSpese, piano: vistaPiano, conto: vistaConto, altro: vistaAltro };
+  if (diag) schede.altro = vistaDiagnosi;
   var voci = [["oggi", "Oggi"], ["spese", "Spese"], ["piano", "Piano"], ["conto", "Conto"], ["altro", "Altro"]];
 
   return e("div", { style: { fontFamily: SANS, color: K.inchiostro, paddingBottom: 74 } },
