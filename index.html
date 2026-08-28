@@ -513,7 +513,7 @@ var M = (function () {
   function movBuste(store) {
     var out = [];
     store.ev.forEach(function (e) {
-      if (e.t === "accIni" || e.t === "versaExtra") out.push({ b: e.bustaId, imp: e.imp, t: ts(e.d), dep: true });
+      if (e.t === "accIni" || e.t === "versaExtra") out.push({ b: e.bustaId, imp: e.imp, t: ts(e.d) });
       if (e.t === "spesa" && e.fonte && e.fonte.indexOf("busta:") === 0)
         out.push({ b: e.fonte.slice(6), imp: -e.imp, t: ts(e.d) });
       // "quei soldi non c'erano davvero": la lettura del conto smentisce l'accantonamento
@@ -536,7 +536,7 @@ var M = (function () {
   // di quel ciclo, cosi' resta stabile per tutto il mese e non si muove sotto i piedi.
   function pianoQuote(store, lista, oggi) {
     var mov = movBuste(store);
-    var quote = [], accFin = {}, rilasciati = 0, conti = {};
+    var quote = [], accFin = {}, rilasciati = 0;
     var cumQuote = {};
     store.buste.forEach(function (b) { cumQuote[b.id] = 0; accFin[b.id] = 0; });
     for (var i = 0; i < lista.length; i++) {
@@ -549,21 +549,15 @@ var M = (function () {
         }
         var movPrima = mov.filter(function (m) { return m.b === b.id && m.t < c.ini; })
           .reduce(function (a, m) { return a + m.imp; }, 0);
-        // Quello che DICHIARI dentro il ciclo vale subito: una correzione dell'accumulato
-        // o un versamento volontario cambiano la quota adesso, perche' cambiano quanto
-        // manca davvero. I prelievi no: quelli non devono muovere la quota a meta' mese.
+        // Una correzione fatta a mano DENTRO il ciclo vale subito: se dici che da parte
+        // ci sono 100 e non 300, quello che manca va spalmato ora sui mesi che restano,
+        // non dal mese prossimo. Le spese normali invece non muovono la quota del mese.
         var corrDentro = mov.filter(function (m) {
-          return m.b === b.id && (m.corr || m.dep) && m.t >= c.ini && m.t <= Math.min(oggi, c.fin);
+          return m.b === b.id && m.corr && m.t >= c.ini && m.t <= Math.min(oggi, c.fin);
         }).reduce(function (a, m) { return a + m.imp; }, 0);
         var accAp = c2(cumQuote[b.id] + movPrima + corrDentro);
-        var scB = scadBusta(store, b);
-        var bb = { attiva: b.attiva, tipo: b.tipo, scad: scB, obiettivo: b.obiettivo, quota: b.quota, acc: accAp };
+        var bb = { attiva: b.attiva, tipo: b.tipo, scad: scadBusta(store, b), obiettivo: b.obiettivo, quota: b.quota, acc: accAp };
         q[b.id] = (c.ini <= oggi) ? quotaBusta(bb, c.ini) : 0;
-        if (c.ini <= oggi && oggi <= c.fin) {
-          var mesiQ = 0, dQ = new Date(c.ini);
-          while (scB && dQ.getTime() < scB && mesiQ < 120) { mesiQ++; dQ.setMonth(dQ.getMonth() + 1); }
-          conti[b.id] = { base: c2(Math.max(0, accAp)), manca: c2(Math.max(0, (b.obiettivo || 0) - Math.max(0, accAp))), mesi: mesiQ, quota: q[b.id] };
-        }
         cumQuote[b.id] = c2(cumQuote[b.id] + q[b.id]);
       });
       quote.push(q);
@@ -588,7 +582,7 @@ var M = (function () {
       var movTot = mov.filter(function (m) { return m.b === b.id; }).reduce(function (a, m) { return a + m.imp; }, 0);
       accFin[b.id] = c2(cumQuote[b.id] + movTot);
     });
-    return { quote: quote, acc: accFin, rilasciati: c2(rilasciati), conti: conti };
+    return { quote: quote, acc: accFin, rilasciati: c2(rilasciati) };
   }
 
   /* ============================================================
@@ -596,6 +590,72 @@ var M = (function () {
      La tassa di risparmio NON e' uno stato salvato: e' il risultato
      della cronologia. Se aggiungi una spesa di ieri, tutto si ricalcola.
      ============================================================ */
+  /* ════════════════════════════════════════════════════════════
+     BLOCCO CATENA — l'unica strada per sapere quanto c'e' in banca
+     Ancora sull'ultimo estratto conto, poi solo movimenti veri.
+     Lo stipendio e' un'entrata come le altre: se e' arrivato dopo la
+     lettura si somma, se e' arrivato prima e' gia' dentro il saldo.
+     Niente stime, niente ricostruzioni.
+     ════════════════════════════════════════════════════════════ */
+  var ENTRATA = { paga: 1, entrata: 1 };
+  var USCITA = { spesa: 1, fissa: 1 };
+
+  // istante di un evento: conta il giorno, a parita' di giorno conta l'ora
+  function istante(e) { return ts(e.d) * 1000000 + ((e.ts || 0) % 1000000); }
+
+  function ultimaLetturaA(store, quando) {
+    var L = null;
+    store.ev.forEach(function (e) {
+      if (e.t !== "lettura" || ts(e.d) > quando) return;
+      if (!L || istante(e) > istante(L)) L = e;
+    });
+    return L;
+  }
+
+  function saldoA(store, quando, righeFisse) {
+    var L = ultimaLetturaA(store, quando);
+    var da = L ? istante(L) : -Infinity;
+    var mv = [];
+    // una paga registrata due volte dalla sincronizzazione conta una volta sola
+    var vistaPaga = {};
+    store.ev.slice().sort(function (a, b) { return istante(a) - istante(b); }).forEach(function (e) {
+      if (e.t === "paga") { var k = e.d + "|" + c2(e.imp); if (vistaPaga[k]) return; vistaPaga[k] = e.id; }
+      if (ts(e.d) > quando || istante(e) <= da) return;
+      var nome = e.nota || e.cat || "";
+      if (ENTRATA[e.t]) {
+        mv.push({ id: e.id, d: e.d, ts: e.ts || ts(e.d), tipo: e.t, seg: 1, imp: c2(e.imp),
+                  nome: nome || (e.t === "paga" ? "stipendio" : "entrata") });
+      } else if (USCITA[e.t]) {
+        if (e.t === "fissa") { nome = "voce fissa"; }
+        store.fisse.forEach(function (f) { if (f.id === e.fissaId) nome = f.nome; });
+        mv.push({ id: e.id, d: e.d, ts: e.ts || ts(e.d), tipo: e.t, seg: -1, imp: c2(e.imp),
+                  nome: nome || "spesa" });
+      }
+    });
+    // addebiti automatici gia' scattati e mai confermati a mano: i soldi sono usciti lo stesso
+    (righeFisse || []).forEach(function (r) {
+      if (r.autoUscita && r.scad != null && r.scad * 1000000 > da && r.scad <= quando)
+        mv.push({ id: "auto-" + r.f.id, d: iso(r.scad), ts: r.scad, tipo: "auto", seg: -1,
+                  imp: c2(r.f.prev), nome: r.f.nome });
+    });
+    mv.sort(function (a, b) { return (ts(a.d) - ts(b.d)) || (a.ts - b.ts); });
+    var ent = 0, usc = 0;
+    mv.forEach(function (m) { if (m.seg > 0) ent = c2(ent + m.imp); else usc = c2(usc + m.imp); });
+    return {
+      L: L, ancoraSaldo: L ? c2(L.saldo) : 0, mv: mv, entrate: ent, uscite: usc,
+      saldo: c2((L ? L.saldo : 0) + ent - usc), certo: !!L
+    };
+  }
+
+  // fondo cassa dichiarato a una certa data
+  function fondoA(store, quando) {
+    var fc = store.imp.fc || 0;
+    store.ev.filter(function (e) { return e.t === "fc" && ts(e.d) <= quando; })
+      .sort(function (a, b) { return istante(a) - istante(b); })
+      .forEach(function (e) { fc = c2(e.valore); });
+    return c2(fc);
+  }
+
   function simula(store, ciclo, oggi, quotePer) {
     var imp = store.imp;
     var fisse = statoFisse(store, ciclo, oggi);
@@ -622,13 +682,34 @@ var M = (function () {
       var t = ts(e.d);
       if (t >= ciclo.ini && t <= ciclo.fin) distPerGiorno[t] = (distPerGiorno[t] || 0) + e.imp;
     });
-    // rettifiche che entrano nel budget (soldi trovati / spese sfuggite gia' registrate a parte)
+    // Le vecchie rettifiche non esistono piu'. Al loro posto, qui entrano solo i
+    // soldi che vengono DAVVERO liberati durante il ciclo, e che la banca vede
+    // gia': se correggi un accantonamento all'ingiu', o abbassi il fondo cassa,
+    // quei soldi diventano spendibili e il budget deve saperlo. Altrimenti la
+    // pagina Conto li conta e la pagina Oggi no.
     var rettPerGiorno = {};
+    function liberato(t, q) { rettPerGiorno[t] = c2((rettPerGiorno[t] || 0) + q); }
     store.ev.forEach(function (e) {
-      if (e.t !== "rett" || e.causa !== "budget") return;
       var t = ts(e.d);
-      if (t >= ciclo.ini && t <= ciclo.fin) rettPerGiorno[t] = (rettPerGiorno[t] || 0) + e.imp;
+      if (t < ciclo.ini || t > ciclo.fin) return;
+      // una correzione dei soldi fantasma: se scendono, il budget sale
+      if (e.t === "corr") liberato(t, c2(-e.imp));
+      // un versamento extra in busta: soldi che escono dal budget e diventano fantasma
+      if (e.t === "versaExtra") liberato(t, c2(-e.imp));
+      // un accredito che non aspettavi: la banca lo vede, il budget pure
+      if (e.t === "entrata") liberato(t, c2(e.imp));
     });
+    // il fondo cassa cambiato a meta' ciclo: la differenza passa nel budget
+    (function () {
+      var prec = fondoA(store, piuGiorni(ciclo.ini, -1));
+      store.ev.filter(function (e) { return e.t === "fc"; })
+        .sort(function (a, b) { return istante(a) - istante(b); })
+        .forEach(function (e) {
+          var t = ts(e.d);
+          if (t >= ciclo.ini && t <= ciclo.fin) liberato(t, c2(prec - e.valore));
+          prec = c2(e.valore);
+        });
+    })();
 
     var giorniTot = giorniTra(ciclo.ini, ciclo.fin) + 1;
     var ultimo = Math.min(oggi, ciclo.fin);
@@ -693,7 +774,6 @@ var M = (function () {
     var lista = cicli(store, oggi);
     var piano = pianoQuote(store, lista, oggi);
     var accCorrente = piano.acc;
-    var contiBuste = piano.conti;
 
     var salv = c2(piano.rilasciati || 0), salvF = 0, chiusi = [];
     var corrente = null, simCorrente = null;
@@ -744,63 +824,29 @@ var M = (function () {
     var residuoCiclo = simCorrente ? simCorrente.residuo : 0;
     var impegnato = simCorrente ? simCorrente.impegnato : 0;
 
-    /* ==========================================================
-       UNA SOLA CATENA
-         Atteso in banca = fondo cassa
-                         + soldi fantasma che c'erano alla paga
-                         + stipendio
-                         - tutto quello che e' uscito dal conto
-       e di conseguenza
-         Netto = Atteso - fondo cassa - soldi fantasma di adesso - fisse da pagare
-       ========================================================== */
-    var quotaMeseOra = simCorrente ? c2(simCorrente.quote) : 0;
-    var fantasmaOra = c2(quotaMeseOra + salvCicloCorr + (simCorrente ? simCorrente.salvFisse : 0));
-    var fantasmaCorrente = c2(accTot + salv + salvF);
-    // uscite del ciclo pagate con i soldi fantasma: hanno gia' abbassato il fantasma,
-    // quindi il fantasma "di apertura" va ricostruito rimettendocele
-    var prelBusteCiclo = 0, usciteReali = 0, rettUscite = 0;
-    if (corrente) {
-      store.ev.forEach(function (e) {
-        var t = ts(e.d);
-        if (t < corrente.ini || t > corrente.fin) return;
-        if (e.t === "spesa") {
-          usciteReali = c2(usciteReali + e.imp);
-          if (e.fonte && e.fonte.indexOf("busta:") === 0) prelBusteCiclo = c2(prelBusteCiclo + e.imp);
-        }
-        if (e.t === "fissa") usciteReali = c2(usciteReali + e.imp);
-        // una differenza attribuita al conto o al mese si comporta come un movimento vero
-        if (e.t === "rett") rettUscite = c2(rettUscite + e.imp);
-      });
-      // addebiti automatici scattati e non ancora confermati a mano
-      simCorrente.fisse.forEach(function (r) { if (r.autoUscita) usciteReali = c2(usciteReali + r.f.prev); });
-    }
-    usciteReali = c2(usciteReali - rettUscite);
-    /* I soldi fantasma com'erano il giorno della paga. Si ricostruiscono voce per voce,
-       senza passare dai totali arrotondati o azzerati: se prelevi dal salvadanaio piu' di
-       quanto hai messo via in questo ciclo, il conto deve reggere lo stesso. */
-    var salvApertura = c2(salv + usciteSalvCiclo - (simCorrente ? simCorrente.tassa : 0));
-    var salvFApertura = c2(salvF - (simCorrente ? simCorrente.salvFisse : 0));
-    var accApertura = c2(accTot - quotaMeseOra + prelBusteCiclo);
-    var fantasmaApertura = c2(salvApertura + salvFApertura + accApertura);
-    var attesoBanca = c2(fc + fantasmaApertura + (corrente ? corrente.stip : 0) - usciteReali);
-    var nettoTuo = c2(attesoBanca - fc - fantasmaCorrente - impegnato);
+    // ===== UNA SOLA CATENA =====
+    // L'atteso in banca non e' piu' la somma dei secchielli: e' l'ultimo estratto
+    // conto meno quello che e' uscito dopo. Cosi' un errore non si trascina, muore
+    // alla lettura successiva.
+    var cat = saldoA(store, oggi, simCorrente ? simCorrente.fisse : []);
+    var attesoBanca = cat.saldo;
+    var fuoriApp = 0;
 
-    var fuoriApp = 0;   // resta solo per leggere i registri vecchi
-    var letture = store.ev.filter(function (e) { return e.t === "lettura"; })
-      .sort(function (a, b) { return ts(a.d) - ts(b.d) || a.ts - b.ts; });
-    var ultimaLettura = letture.length ? letture[letture.length - 1] : null;
+    // La prova del nove: quello che c'e' in banca deve essere fatto di fondo cassa,
+    // soldi fantasma, fisse da pagare e budget. Se non torna, l'app lo dice.
+    var scartoLibro = c2(attesoBanca - (fc + accTot + salv + salvF + impegnato + residuoCiclo));
+    var ultimaLettura = cat.L;
 
     return {
       oggi: oggi, imp: imp, cicli: lista, ciclo: corrente, sim: simCorrente, chiusi: chiusi,
-      fc: c2(fc), acc: accCorrente, accTot: accTot, contiBuste: contiBuste, salv: c2(salv), salvF: c2(salvF),
+      fc: c2(fc), acc: accCorrente, accTot: accTot, salv: c2(salv), salvF: c2(salvF),
       // le tre voci di risparmio, distinte: mesi scorsi / mese in corso / sulle bollette
       salvPrima: c2(salv - salvCicloCorr), salvOra: c2(salvCicloCorr), salvFCiclo: c2(salvFCiclo),
       quotaMese: simCorrente ? c2(simCorrente.quote) : 0,
       accPrima: c2(accTot - (simCorrente ? simCorrente.quote : 0)),
       impegnato: impegnato, budget: residuoCiclo, fuoriApp: fuoriApp,
       attesoBanca: attesoBanca, ultimaLettura: ultimaLettura,
-      fantasmaOra: fantasmaOra, fantasmaCorrente: fantasmaCorrente,
-      fantasmaApertura: fantasmaApertura, usciteReali: usciteReali, nettoTuo: nettoTuo,
+      catena: cat, scartoLibro: scartoLibro, saldoCerto: cat.certo,
       // soglia sotto cui non scendere: e' denaro che c'e' ma non e' tuo da spendere
       soglia: c2(fc + accTot + salv + salvF)
     };
@@ -826,42 +872,22 @@ var M = (function () {
     if (!sim) return null;
     var L = st.ultimaLettura;
 
-    // --- l'ancora ---
-    var ancora;
-    if (L) ancora = { tipo: "lettura", saldo: L.saldo, ts: evTs(L), d: L.d };
-    else ancora = {
-      tipo: "stima", saldo: c2(st.fc + st.accTot + st.salv + st.salvF + sim.ciclo.stip),
-      ts: ts(iso(sim.ciclo.ini)), d: iso(sim.ciclo.ini)
-    };
+    // --- l'ancora: la stessa che usa stato(), mai una seconda strada ---
+    var cat = st.catena;
+    var ancora = L
+      ? { tipo: "lettura", saldo: c2(L.saldo), ts: evTs(L), d: L.d }
+      : { tipo: "vuota", saldo: 0, ts: 0, d: iso(sim.ciclo.ini) };
 
-    // --- che cosa e' uscito dal conto DOPO quel momento ---
+    // --- che cosa ha mosso il conto DOPO quel momento ---
     // Il giorno conta piu' dell'orario: una spesa DATATA prima della lettura era gia'
-    // dentro il saldo, anche se l'hai registrata stasera. Solo per le spese dello stesso
-    // giorno della lettura guardo l'ora: quelle delle 12 dopo un saldo letto alle 9 vanno tolte.
-    var ancoraGG = ts(ancora.d);
-    var dopoLettura = function (e) {
-      var k = ts(e.d);
-      if (k > ancoraGG) return true;
-      if (k < ancoraGG) return false;
-      return evTs(e) > ancora.ts;
-    };
-    var dopo = [];
-    store.ev.forEach(function (e) {
-      if ((e.t === "spesa" || e.t === "fissa") && dopoLettura(e)) {
-        var nome = e.t === "fissa" ? "voce fissa" : (e.nota || e.cat || "spesa");
-        store.fisse.forEach(function (f) { if (f.id === e.fissaId) nome = f.nome; });
-        dopo.push({ id: e.id, d: e.d, ts: evTs(e), nome: nome, imp: e.imp, tipo: e.t });
-      }
+    // dentro il saldo, anche se l'hai registrata stasera. Solo per i movimenti dello
+    // stesso giorno della lettura guardo l'ora.
+    var dopo = cat.mv.filter(function (m) { return m.seg < 0; }).map(function (m) {
+      return { id: m.id, d: m.d, ts: m.ts, nome: m.nome, imp: m.imp, tipo: m.tipo };
     });
-    // addebiti automatici scattati dopo la lettura e mai confermati a mano
-    sim.fisse.forEach(function (r) {
-      if (r.autoUscita && r.scad != null && r.scad > ancoraGG) {
-        dopo.push({ id: "auto-" + r.f.id, d: iso(r.scad), ts: r.scad, nome: r.f.nome, imp: r.f.prev, tipo: "auto" });
-      }
-    });
-    dopo.sort(function (a, b) { return a.ts - b.ts; });
-    var totDopo = c2(dopo.reduce(function (a, x) { return a + x.imp; }, 0));
-    var reale = c2(ancora.saldo - totDopo);
+    var entrateDopo = cat.mv.filter(function (m) { return m.seg > 0; });
+    var totDopo = cat.uscite;
+    var reale = cat.saldo;
 
     // --- gli impegni che restano ---
     var fisseDaPagare = [], previste = [];
@@ -919,7 +945,26 @@ var M = (function () {
       netto: netto, giorniRimasti: giorniRimasti, giorniAttesa: giorniAttesa,
       alGiorno: c2(netto / giorniRimasti),
       alGiornoAttesa: c2(netto / giorniAttesa),
-      scarto: L ? c2(L.saldo - st.attesoBanca) : null
+      entrateDopo: entrateDopo, totEntrate: cat.entrate, saldoCerto: cat.certo,
+      // Lo scarto si misura nell'istante della lettura, contro quello che il registro
+      // si aspettava allora: e' l'unico confronto che ha senso.
+      scarto: (function () {
+        if (!L) return null;
+        var prima = null;
+        store.ev.forEach(function (e) {
+          if (e.t !== "lettura" || istante(e) >= istante(L)) return;
+          if (!prima || istante(e) > istante(prima)) prima = e;
+        });
+        if (!prima) return null;
+        var m = 0;
+        store.ev.forEach(function (e) {
+          if (istante(e) <= istante(prima) || istante(e) >= istante(L)) return;
+          if (ENTRATA[e.t]) m = c2(m + e.imp);
+          if (USCITA[e.t]) m = c2(m - e.imp);
+        });
+        return c2(L.saldo - c2(prima.saldo + m));
+      })(),
+      scartoLibro: st.scartoLibro
     };
   }
 
@@ -1008,6 +1053,35 @@ var M = (function () {
   }
   function distribuisci(store, importo) {
     return ev(store, { t: "dist", imp: c2(importo) });
+  }
+  /* Chiudere una differenza sull'estratto conto. Tre cose diverse, tre effetti
+     diversi, mai sovrapposti:
+       "spesa"    -> era un'uscita che non avevo segnato   (banca giu', budget giu')
+       "entrata"  -> era un accredito che non aspettavo    (banca su',  budget su')
+       "fantasma" -> l'accantonamento non c'era davvero    (banca ferma, budget su')
+     Il movimento si data un istante PRIMA della lettura, cosi' la differenza si
+     chiude invece di spostarsi in avanti.                                        */
+  function chiudiDifferenza(store, scarto, come, dove) {
+    var L = null;
+    store.ev.forEach(function (e) {
+      if (e.t !== "lettura") return;
+      if (!L || istante(e) > istante(L)) L = e;
+    });
+    if (!L) return null;
+    var q = { d: L.d, ts: (L.ts || Date.now()) - 1000 };
+    if (come === "spesa")
+      return ev(store, { t: "spesa", imp: c2(-scarto), fonte: "budget", cat: "Imprevisto",
+                         nota: "differenza sull'estratto conto", d: q.d, ts: q.ts });
+    if (come === "entrata")
+      return ev(store, { t: "entrata", imp: c2(scarto),
+                         nota: "differenza sull'estratto conto", d: q.d, ts: q.ts });
+    if (come === "fantasma")
+      return ev(store, { t: "corr", dove: dove || "salv", imp: c2(scarto), d: q.d, ts: q.ts });
+    return null;
+  }
+
+  function registraEntrata(store, importo, nota, dataIso) {
+    return ev(store, { t: "entrata", imp: c2(importo), nota: nota || "", d: dataIso || iso(oggiTs()) });
   }
   function rettifica(store, importo, causa, dataIso) {
     return ev(store, { t: "rett", imp: c2(importo), causa: causa, d: dataIso || iso(oggiTs()) });
@@ -1117,6 +1191,8 @@ var M = (function () {
     pianoQuote: pianoQuote, scadBusta: scadBusta, pagaBusta: pagaBusta,
     stato: stato, oggiVista: oggiVista, inGiorni: inGiorni,
     previsione: previsione, pagheDoppie: pagheDoppie, evTs: evTs,
+    saldoA: saldoA, fondoA: fondoA, istante: istante, chiudiDifferenza: chiudiDifferenza,
+    registraEntrata: registraEntrata,
     registraPaga: registraPaga, registraSpesa: registraSpesa, chiudiFissa: chiudiFissa,
     distribuisci: distribuisci, rettifica: rettifica, leggiSaldo: leggiSaldo,
     fissaFondoCassa: fissaFondoCassa, versaInBusta: versaInBusta,
@@ -1135,7 +1211,7 @@ M.diagnostica = function (store, oggi) {
   var c2 = M.c2, eur = M.eur, ts = M.ts, iso = M.iso, lbl = M.lbl, lblLungo = M.lblLungo;
   oggi = oggi || M.oggiTs();
   var st = M.stato(store, oggi);
-  var P = null;
+  var P = st.sim ? M.previsione(store, oggi, st) : null;
   var out = [];
   var ignorati = store.ignorati || [];
 
@@ -1363,20 +1439,16 @@ M.diagnostica = function (store, oggi) {
   }
 
   /* ---------- 7. IL CONTO ---------- */
-  var vecchieRett = store.ev.filter(function (x) { return x.t === "rett" && x.causa === "fuori"; });
-  if (vecchieRett.length) {
-    var tot = c2(vecchieRett.reduce(function (a, x) { return a + x.imp; }, 0));
-    segnala({
-      cod: "conto-plug", liv: ATT, are: "Conto", tit: "Vecchie correzioni del conto",
-      det: [vecchieRett.length + (vecchieRett.length === 1 ? " correzione" : " correzioni") + " per \u20AC" + eur(tot) + ", registrate quando l'app le teneva a parte.",
-        "Adesso contano come movimenti normali, quindi i conti tornano lo stesso. Puoi toglierle se erano sbagliate."],
-      fix: {
-        lbl: "Toglile", azione: function (s) {
-          vecchieRett.forEach(function (x) { M.togliEv(s, x.id); });
-        }
+  if (Math.abs(st.fuoriApp) > 0.004) segnala({
+    cod: "conto-plug", liv: GRAVE, are: "Conto", tit: "Vecchi aggiustamenti appesi",
+    det: ["\u20AC" + eur(st.fuoriApp) + " di correzioni registrate come \u201cmovimenti fuori app\u201d.",
+      "Restano per sempre e falsano il saldo previsto: senza di loro l'atteso sarebbe \u20AC" + eur(c2(st.attesoBanca - st.fuoriApp)) + "."],
+    fix: {
+      lbl: "Toglili", azione: function (s) {
+        s.ev.filter(function (x) { return x.t === "rett" && x.causa === "fuori"; }).forEach(function (x) { M.togliEv(s, x.id); });
       }
-    });
-  }
+    }
+  });
   var letture = store.ev.filter(function (e) { return e.t === "lettura"; });
   if (!letture.length) segnala({
     cod: "conto-mai-letto", liv: ATT, are: "Conto", tit: "Nessun estratto conto registrato",
@@ -1411,17 +1483,20 @@ M.diagnostica = function (store, oggi) {
   }
 
   /* ---------- 8. LA PROVA DEL NOVE ---------- */
-  var somma = c2(st.fc + st.fantasmaCorrente + st.impegnato + st.nettoTuo);
+  var somma = c2(st.fc + st.accTot + st.salv + st.salvF + st.impegnato + st.budget + st.fuoriApp);
   if (Math.abs(somma - st.attesoBanca) > 0.02) segnala({
     cod: "quadratura", liv: GRAVE, are: "Coerenza", tit: "I conti interni non quadrano",
-    det: ["Fondo cassa + soldi fantasma + fisse da pagare + netto fa \u20AC" + eur(somma) + ", il saldo atteso \u00e8 \u20AC" + eur(st.attesoBanca) + ".",
+    det: ["Somma delle voci \u20AC" + eur(somma) + " contro saldo atteso \u20AC" + eur(st.attesoBanca) + ".",
       "Non dovrebbe mai succedere: se lo vedi, \u00e8 un errore dell'app, non tuo."]
   });
-  if (st.sim && Math.abs(c2(st.nettoTuo - st.budget)) > 0.02) segnala({
-    cod: "netto-budget", liv: GRAVE, are: "Coerenza", tit: "Netto e budget non coincidono",
-    det: ["Il netto dal conto \u00e8 \u20AC" + eur(st.nettoTuo) + ", il budget del ciclo \u00e8 \u20AC" + eur(st.budget) + ".",
-      "Sono due strade per la stessa cifra: se non coincidono, \u00e8 un errore dell'app."]
-  });
+  if (P && st.sim) {
+    var diff = c2(P.netto - st.budget);
+    if (Math.abs(diff) > 2) segnala({
+      cod: "netto-budget", liv: ATT, are: "Coerenza", tit: "Netto e budget non coincidono",
+      det: ["Il netto calcolato dall'estratto conto \u00e8 \u20AC" + eur(P.netto) + ", quello del registro \u20AC" + eur(st.budget) + " (differenza \u20AC" + eur(Math.abs(diff)) + ").",
+        "\u00c8 sempre lo scarto con la banca che non \u00e8 stato attribuito."]
+    });
+  }
 
   var ordine = { grave: 0, attenzione: 1, nota: 2 };
   out.sort(function (a, b) { return ordine[a.liv] - ordine[b.liv]; });
@@ -1494,7 +1569,6 @@ function Scheda(figli, opt) {
 function RigaVoce(sx, dx, opt) {
   opt = opt || {};
   return e("div", {
-    key: opt.key,
     style: {
       display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10,
       padding: "7px 0", borderBottom: opt.ultima ? "none" : "1px solid " + K.riga,
@@ -1573,20 +1647,52 @@ function Nastro(sim, vista, oggi) {
    APP
    ============================================================ */
 var CHIAVE = "budget-v2";
+/* ════════════════════════════════════════════════════════════
+   BLOCCO BONIFICA
+   Le vecchie rettifiche erano ambigue: una sola scrittura muoveva
+   due catene diverse, o una sola. Qui diventano movimenti veri, che
+   e' quello che sono sempre state. Gira una volta, poi resta fatta.
+   ════════════════════════════════════════════════════════════ */
+function bonifica(s) {
+  if (!s || !s.ev || s.bonificato) return s;
+  var n = 0;
+  s.ev = s.ev.map(function (e) {
+    if (e.t !== "rett") return e;
+    n++;
+    var x = JSON.parse(JSON.stringify(e));
+    if (x.causa === "buste" && x.bustaId) { x.t = "corr"; x.dove = "busta:" + x.bustaId; }
+    else if (x.imp < 0) { x.t = "spesa"; x.imp = Math.abs(x.imp); x.fonte = "budget"; x.cat = "Imprevisto"; x.nota = x.nota || "differenza sull'estratto conto"; }
+    else { x.t = "entrata"; x.nota = x.nota || "differenza sull'estratto conto"; }
+    delete x.causa;
+    return x;
+  });
+  // paghe registrate due volte dalla sincronizzazione: la seconda sparisce
+  var visto = {}, tolte = 0;
+  s.ev = s.ev.filter(function (e) {
+    if (e.t !== "paga") return true;
+    var k = e.d + "|" + e.imp;
+    if (visto[k]) { tolte++; s.del = (s.del || []).concat([e.id]); return false; }
+    visto[k] = 1; return true;
+  });
+  s.bonificato = { quando: Date.now(), rett: n, paghe: tolte };
+  s.mod = Date.now();
+  return s;
+}
+
 function carica() {
   try {
     var g = localStorage.getItem(CHIAVE);
-    if (g) return JSON.parse(g);
+    if (g) return bonifica(JSON.parse(g));
   } catch (ex) { }
   try {
     var vecchio = localStorage.getItem("budget-wa");
     if (vecchio) {
       var s = M.migra(JSON.parse(vecchio));
       s.migrato = true;
-      return s;
+      return bonifica(s);
     }
   } catch (ex) { }
-  return M.nuovoStore();
+  return bonifica(M.nuovoStore());
 }
 function salva(s) { try { localStorage.setItem(CHIAVE, JSON.stringify(s)); } catch (ex) { } }
 
@@ -1629,8 +1735,12 @@ function jbGet(cb) {
   };
   x.send();
 }
-function jbPut(dati, cb) {
-  if (!jbBin()) { if (cb) cb(false); return; }
+/* Scrivere = rileggere, fondere, scrivere. Mai un PUT cieco.
+   Prima la fusione girava una volta sola all'avvio e poi ogni modifica
+   riscriveva tutto il contenitore: l'ultimo che salvava cancellava le
+   spese dell'altro telefono, in silenzio. Ecco perche' i conti
+   cambiavano da soli. */
+function jbPutGrezzo(dati, cb) {
   var x = new XMLHttpRequest();
   x.open("PUT", "https://api.jsonbin.io/v3/b/" + jbBin(), true);
   x.setRequestHeader("Content-Type", "application/json");
@@ -1638,6 +1748,13 @@ function jbPut(dati, cb) {
   x.onreadystatechange = function () { if (x.readyState === 4 && cb) cb(x.status === 200); };
   x.onerror = function () { if (cb) cb(false); };
   x.send(JSON.stringify(dati));
+}
+function jbPut(dati, cb) {
+  if (!jbBin()) { if (cb) cb(false, dati); return; }
+  jbGet(function (remoto) {
+    var fuso = (remoto && remoto.ev) ? unisci(dati, remoto) : dati;
+    jbPutGrezzo(fuso, function (ok) { if (cb) cb(ok, fuso); });
+  });
 }
 function unisci(locale, remoto) {
   if (!remoto || !remoto.ev) return locale;
@@ -1648,7 +1765,7 @@ function unisci(locale, remoto) {
   (out.del || []).concat(remoto.del || []).forEach(function (i) { morti[i] = 1; });
   remoto.ev.forEach(function (x) { if (!visti[x.id]) out.ev.push(x); });
   out.ev = out.ev.filter(function (x) { return !morti[x.id]; });
-  out.del = Object.keys(morti).slice(-500);
+  out.del = Object.keys(morti);   // niente taglio: una lapide persa fa risorgere un movimento cancellato
   // impostazioni, fisse e buste: vince la versione toccata piu' di recente
   if ((remoto.mod || 0) > (out.mod || 0)) { out.imp = remoto.imp; out.fisse = remoto.fisse; out.buste = remoto.buste; out.mod = remoto.mod; }
   return out;
@@ -1692,7 +1809,12 @@ function App() {
   ue(function () {
     if (!jbBin()) return;
     if (primo.current) { primo.current = false; return; }
-    var t = setTimeout(function () { jbPut(store, function (o) { setSync(o ? "ok" : "ko"); }); }, 1500);
+    var t = setTimeout(function () {
+      jbPut(store, function (o, fuso) {
+        setSync(o ? "ok" : "ko");
+        if (o && fuso && fuso.ev && fuso.ev.length !== store.ev.length) setStore(fuso);
+      });
+    }, 1500);
     return function () { clearTimeout(t); };
   }, [store]);
 
@@ -1879,29 +2001,17 @@ function App() {
       /* --- come nasce --- */
       Scheda([
         Etichetta("Come nasce il budget di oggi"),
-        (function () {
-          var mov = [];
-          mov.push({ t: "Speso nei giorni passati", v: -M.c2(sim.speso - g.speso), c: K.rosso });
-          if (sim.tassa > 0.004) mov.push({ t: "Gi\u00e0 messo nel salvadanaio", v: -sim.tassa, c: K.verde });
-          if (sim.dist > 0.004) mov.push({ t: "Ripreso dal salvadanaio", v: sim.dist, c: K.verde, sg: true });
-          if (Math.abs(sim.rett) > 0.004) mov.push({ t: "Rettifiche sul budget", v: sim.rett, c: K.blu, sg: true, n: "differenze che hai attribuito a questo mese" });
-          // garanzia: la somma delle righe deve dare la base. Se avanza qualcosa la mostro.
-          var somma = M.c2(sim.disponibile + mov.reduce(function (a, x) { return a + x.v; }, 0));
-          var resto = M.c2(g.base - somma);
-          if (Math.abs(resto) > 0.004) mov.push({ t: "Altro", v: resto, c: K.tenue, sg: true, n: "voce non classificata" });
-          return e("div", { key: "c", style: { marginTop: 8 } },
-            RigaVoce("Stipendio del ciclo", Cifra(sim.ciclo.stip)),
-            RigaVoce(e("span", null, "Spese fisse ", e("span", { style: { color: K.tenue, fontSize: 11 } }, "(al previsto o pi\u00f9)")), Cifra(-sim.fissePesano, { col: K.rosso })),
-            sim.quote > 0.004 ? RigaVoce("Quote delle buste", Cifra(-sim.quote, { col: K.ottone })) : null,
-            RigaVoce(e("b", null, "Disponibile per vivere"), Cifra(sim.disponibile, { peso: 700 })),
-            mov.map(function (x, i) {
-              return RigaVoce(x.n ? e("span", null, x.t, e("div", { style: { fontSize: 10.5, color: K.tenue } }, x.n)) : x.t,
-                Cifra(x.v, { col: x.c, segno: x.sg }), { key: i });
-            }),
-            RigaVoce(e("b", null, "Base di oggi"), Cifra(g.base, { peso: 700 }), { ultima: true }));
-        })(),
-        e("div", { key: "f", style: { marginTop: 10, padding: "10px 12px", background: K.carta, borderRadius: 3, textAlign: "center", fontFamily: MONO, fontSize: 13.5, fontWeight: 600 } },
-          "\u20AC" + M.eur(g.base) + " \u00F7 " + g.rimasti + " giorni = ",
+        e("div", { key: "c", style: { marginTop: 8 } },
+          RigaVoce("Stipendio del ciclo", Cifra(sim.ciclo.stip)),
+          RigaVoce(e("span", null, "Spese fisse ", e("span", { style: { color: K.tenue, fontSize: 11 } }, "(al previsto o pi\u00f9)")), Cifra(-sim.fissePesano, { col: K.rosso })),
+          sim.quote > 0.004 ? RigaVoce("Quote delle buste", Cifra(-sim.quote, { col: K.ottone })) : null,
+          RigaVoce(e("b", null, "Disponibile per vivere"), Cifra(sim.disponibile, { peso: 700 })),
+          RigaVoce("Speso nei giorni passati", Cifra(-(sim.speso - g.speso), { col: K.rosso })),
+          sim.tassa > 0.004 ? RigaVoce("Gi\u00e0 messo nel salvadanaio", Cifra(-sim.tassa, { col: K.verde })) : null,
+          sim.dist > 0.004 ? RigaVoce("Ripreso dal salvadanaio", Cifra(sim.dist, { col: K.verde, segno: true })) : null,
+          RigaVoce(e("b", null, "Base di oggi"), Cifra(g.base, { peso: 700 }), { ultima: true })),
+        e("div", { key: "f", style: { marginTop: 10, padding: "10px 12px", background: K.carta, borderRadius: 3, textAlign: "center", fontFamily: MONO, fontSize: 14, fontWeight: 600 } },
+          "\u20AC" + M.eur0(g.base) + " \u00F7 " + g.rimasti + " giorni = ",
           e("span", { style: { color: K.inchiostro, fontWeight: 700 } }, "\u20AC" + M.eur(v.bOggi)))
       ]),
 
@@ -1909,12 +2019,8 @@ function App() {
       Scheda([
         e("div", { key: "h", style: { display: "flex", justifyContent: "space-between", alignItems: "center" } },
           e("div", null, Etichetta("Salvadanaio"),
-            e("div", { style: { fontFamily: SANS, fontSize: 11, color: K.tenue, marginTop: 2, lineHeight: 1.5 } },
-              sim.giorniOk + (sim.giorniOk === 1 ? " giorno pieno" : " giorni pieni") +
-              (sim.giorniParziali > 0 ? (" + " + sim.giorniParziali + (sim.giorniParziali === 1 ? " parziale" : " parziali")) : "") +
-              (sim.serie > 1 ? (" \u00b7 " + sim.serie + " di fila") : "")),
-            e("div", { style: { fontFamily: SANS, fontSize: 11, color: K.tenue, marginTop: 1 } },
-              "questo mese \u20AC" + M.eur(st.salvOra) + (st.salvPrima > 0.004 ? (" \u00b7 mesi scorsi \u20AC" + M.eur(st.salvPrima)) : ""))),
+            e("div", { style: { fontFamily: SANS, fontSize: 11, color: K.tenue, marginTop: 2 } },
+              sim.giorniOk + " giorni rispettati" + (sim.serie > 1 ? (" \u00b7 " + sim.serie + " di fila") : ""))),
           e("div", { style: { fontFamily: MONO, fontSize: 24, fontWeight: 700, color: K.verde } }, "\u20AC" + M.eur(st.salv))),
         st.salvF > 0.004 ? e("div", { key: "i", style: { marginTop: 8 } },
           RigaVoce("Risparmiato sulle bollette", Cifra(st.salvF, { col: K.verde }), { ultima: true })) : null,
@@ -2190,10 +2296,8 @@ function App() {
               ? ("uscita a \u20AC" + M.eur(x.uscito) + (x.risparmio > 0.004 ? (" \u00b7 \u20AC" + M.eur(x.risparmio) + " risparmiati") : (x.sforo > 0.004 ? (" \u00b7 \u20AC" + M.eur(x.sforo) + " di sforo") : "")))
               : x.autoUscita
                 ? ("addebitata il " + M.lbl(x.scad) + " \u00b7 importo previsto")
-                : (x.sforo > 0.004
-                ? ("\u20AC" + M.eur(x.uscito) + " spesi contro \u20AC" + M.eur0(x.f.prev) + " previsti \u00b7 pesa \u20AC" + M.eur(x.pesa) + " sul budget")
                 : (x.uscito > 0.004 ? ("\u20AC" + M.eur(x.uscito) + " versati su \u20AC" + M.eur0(x.f.prev) + " \u00b7 restano \u20AC" + M.eur(x.restaDaUscire))
-                  : (x.scad ? ("esce il " + M.lbl(x.scad)) : ("previsti \u20AC" + M.eur0(x.f.prev)))));
+                  : (x.scad ? ("esce il " + M.lbl(x.scad)) : ("previsti \u20AC" + M.eur0(x.f.prev))));
             return e("div", {
               key: x.f.id,
               style: {
@@ -2209,9 +2313,7 @@ function App() {
                   e("div", { style: Object.assign({ fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: fuori ? K.tenue : K.inchiostro }, barrato) }, x.f.nome),
                   e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: fuori ? K.verde : K.tenue, marginTop: 1 } },
                     (fuori ? "\u2713 " : "") + sotto)),
-                e("span", { style: barrato }, Cifra(x.pesa, { size: 14, peso: 700, col: fuori ? K.tenue : (x.sforo > 0.004 ? K.rosso : K.inchiostro) }))),
-              (!fuori && x.sforo > 0.004) ? e("div", { style: { marginTop: 5, padding: "7px 9px", background: K.rossoL, borderRadius: 3, fontFamily: SANS, fontSize: 10.5, lineHeight: 1.5 } },
-                "Hai speso pi\u00f9 del previsto: il budget conta \u20AC" + M.eur(x.pesa) + ", non \u20AC" + M.eur0(x.f.prev) + ". Alza la previsione da Modifica, cos\u00ec i conti dei prossimi mesi partono giusti.") : null,
+                e("span", { style: barrato }, Cifra(x.f.prev, { size: 14, peso: 700, col: fuori ? K.tenue : K.inchiostro }))),
               fuori ? e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue, marginTop: 3, fontStyle: "italic" } },
                 "questi soldi non sono pi\u00f9 sul conto: non li conto tra le spese da fare") : null,
               e("div", { style: { display: "flex", gap: 6, marginTop: 7 } },
@@ -2322,13 +2424,13 @@ function App() {
               RigaVoce("Accumulato nei mesi scorsi", Cifra(M.c2(acc - quota), { size: 13, col: K.ottone })),
               RigaVoce("Quota di questo mese", quota > 0.004 ? Cifra(quota, { size: 13, col: K.ottone }) :
                 e("span", { style: { fontFamily: SANS, fontSize: 12, color: K.tenue } }, "nessuna"), { ultima: true }),
-              (function () {
-                var cc = st.contiBuste ? st.contiBuste[b.id] : null;
-                if (tipo !== "scadenza" || !sc || !cc || !cc.mesi) return null;
-                return e("div", { style: { marginTop: 6, fontFamily: SANS, fontSize: 10.5, color: K.tenue, lineHeight: 1.55, fontStyle: "italic" } },
-                  "obiettivo \u20AC" + M.eur(b.obiettivo) + " \u2212 \u20AC" + M.eur(cc.base) + " gi\u00e0 da parte = \u20AC" + M.eur(cc.manca) +
-                  " da mettere via in " + cc.mesi + (cc.mesi === 1 ? " mese" : " mesi") + " = \u20AC" + M.eur(cc.quota) + " al mese");
-              })()),
+              (b.obiettivo > 0.004 && sc && tipo === "scadenza") ? e("div", { style: { marginTop: 6, fontFamily: SANS, fontSize: 10.5, color: K.tenue, lineHeight: 1.55, fontStyle: "italic" } },
+                (function () {
+                  var manca = Math.max(0, b.obiettivo - Math.max(0, M.c2(acc - quota)));
+                  var mesi = 0, d = new Date(sim.ciclo.ini);
+                  while (d.getTime() < sc && mesi < 120) { mesi++; d.setMonth(d.getMonth() + 1); }
+                  return "mancano \u20AC" + M.eur(manca) + " divisi per " + mesi + (mesi === 1 ? " mese" : " mesi") + " = \u20AC" + M.eur(quota) + " al mese";
+                })()) : null),
             e("div", { key: "b", style: { display: "flex", gap: 6, marginTop: 9 } },
               Bottone("Ho pagato", function () {
                 chiedi({
@@ -2587,34 +2689,12 @@ function App() {
      ============================================================ */
   function vistaConto() {
     var letto = st.ultimaLettura;
-    var doppie = M.pagheDoppie(store).scartate;
-    var g = sim.oggiG;
-    var giorniRimasti = Math.max(1, M.giorniTra(oggi, sim.ciclo.fin) + 1);
-    var alGiorno = M.c2(st.nettoTuo / giorniRimasti);
-    var giorniAttesa = giorniRimasti;
-    if (store.imp.prevista) {
-      var gp = M.giorniTra(oggi, M.ts(store.imp.prevista));
-      if (gp > 0) giorniAttesa = gp;
-    }
-
-    /* quello che il conto doveva avere nel momento in cui hai letto il saldo */
-    function attesoQuando(ev) {
-      if (!ev) return st.attesoBanca;
-      var lim = M.evTs(ev), gg = M.ts(ev.d), dopo = 0;
-      store.ev.forEach(function (x) {
-        if (x.t !== "spesa" && x.t !== "fissa" && x.t !== "rett") return;
-        var t = M.ts(x.d);
-        if (t < sim.ciclo.ini || t > sim.ciclo.fin) return;
-        var seguente = t > gg ? true : (t < gg ? false : M.evTs(x) > lim);
-        if (seguente) dopo = M.c2(dopo + (x.t === "rett" ? -x.imp : x.imp));
-      });
-      return M.c2(st.attesoBanca + dopo);
-    }
-    var attesoAllora = attesoQuando(letto);
-    var scarto = letto ? M.c2(letto.saldo - attesoAllora) : null;
+    var scarto = letto ? M.c2(letto.saldo - st.attesoBanca) : null;
     var quadra = scarto != null && Math.abs(scarto) <= 2;
+    var P = M.previsione(store, oggi, st);
+    var doppie = M.pagheDoppie(store).scartate;
 
-    function riga(sx, val, nota, opt) {
+    function passo(sx, val, nota, opt) {
       opt = opt || {};
       return e("div", { key: opt.k, style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "8px 0", borderTop: opt.riga ? ("1px solid " + K.riga) : "none" } },
         e("span", { style: { flex: 1, minWidth: 0 } },
@@ -2623,153 +2703,288 @@ function App() {
         Cifra(val, { size: opt.forte ? 15 : 13.5, peso: opt.forte ? 700 : 600, col: opt.col, segno: opt.segno }));
     }
 
-    /* le voci fantasma, in chiaro */
-    var vociFantasma = [
-      ["Quota delle buste di questo mese", sim.quote, K.ottone],
-      ["Quote accantonate nei mesi scorsi", M.c2(st.accTot - sim.quote), K.ottone],
-      ["Risparmio dei mesi scorsi", st.salvPrima, K.verde],
-      ["Risparmio di questo mese", st.salvOra, K.verde],
-      ["Risparmio dalle fisse", st.salvF, K.verde]
-    ].filter(function (x) { return Math.abs(x[1]) > 0.004; });
-
-    var fisseAperte = sim.fisse.filter(function (x) { return x.restaDaUscire > 0.004; });
-
     return e("div", null,
       doppie.length ? Scheda([
         e("div", { key: "w", style: { fontFamily: SANS, fontSize: 12.5, lineHeight: 1.6 } },
           e("b", null, "Ho trovato " + doppie.length + (doppie.length === 1 ? " paga registrata due volte" : " paghe registrate due volte") + "."),
-          " Le sto ignorando. Sistemale da Altro \u2192 Controlla i dati.")
+          " Le sto ignorando, altrimenti raddoppierebbero stipendio, quote e saldo previsto. Se erano davvero due accrediti diversi, scrivimelo cambiando la data di uno dei due.")
       ], { accento: K.ottone }) : null,
 
-      /* ---------- 1. QUELLO CHE DOVRESTI LEGGERE ---------- */
+      /* ===== 1. QUELLO CHE DOVRESTI TROVARE ADESSO ===== */
       Scheda([
         Etichetta("Se guardi il conto adesso dovresti trovare"),
-        e("div", { key: "n", style: { fontFamily: MONO, fontSize: 40, fontWeight: 700, marginTop: 2, letterSpacing: -1 } }, "\u20AC" + M.eur(st.attesoBanca)),
-        e("div", { key: "r", style: { marginTop: 12 } },
-          riga("Fondo cassa", st.fc, "la cifra che hai deciso di non toccare", { k: "a" }),
-          st.fantasmaApertura > 0.004 ? riga("Soldi fantasma della paga scorsa", st.fantasmaApertura, "quote e risparmi gi\u00e0 sul conto quando \u00e8 arrivato lo stipendio", { k: "b", col: K.ottone, riga: true }) : null,
-          riga("Stipendio", sim.ciclo.stip, M.lblLungo(sim.ciclo.ini), { k: "c", riga: true }),
-          riga("Uscito dal conto finora", -st.usciteReali, "tutto quello che hai speso in questo ciclo", { k: "d", col: K.rosso, riga: true }),
-          e("div", { key: "t", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6, paddingTop: 9, borderTop: "2px solid " + K.inchiostro } },
-            e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Dovresti leggere"),
-            Cifra(st.attesoBanca, { size: 18, peso: 700 })))
+        e("div", { key: "n", style: { fontFamily: MONO, fontSize: 40, fontWeight: 700, marginTop: 2, letterSpacing: -1 } }, "\u20AC" + M.eur(P.reale)),
+        e("div", { key: "d", style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, marginTop: 3, lineHeight: 1.5 } },
+          P.ancora.tipo === "lettura"
+            ? ("letti \u20AC" + M.eur(P.ancora.saldo) + " il " + M.lbl(M.ts(P.ancora.d)) + " alle " + new Date(P.ancora.ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+              + (P.totDopo > 0.004 ? (", meno \u20AC" + M.eur(P.totDopo) + " usciti dopo") : ", nessuna spesa dopo"))
+            : "stima: non hai ancora registrato nessun estratto conto")
       ], { accento: K.inchiostro }),
 
-      /* ---------- 2. IL CONFRONTO ---------- */
+      /* ===== 2. LA SOTTRAZIONE, IN QUATTRO RIGHE ===== */
       Scheda([
-        Etichetta("Controlla con la banca"),
+        e("div", { key: "s1", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "3px 0 9px" } },
+          e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Non toccare"),
+          Cifra(P.soglia, { size: 17, peso: 700, col: K.ottone })),
+        e("div", { key: "s2", style: { paddingLeft: 2, marginTop: -4, marginBottom: 8 } },
+          e("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: SANS, fontSize: 12, color: K.tenue, padding: "3px 0" } },
+            e("span", null, "fondo cassa"), Cifra(P.fc, { size: 12, col: K.tenue })),
+          e("button", {
+            onClick: function () { setFant(!fant); },
+            style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "baseline", background: "none", border: "none", padding: "3px 0", cursor: "pointer", fontFamily: SANS, fontSize: 12, color: K.tenue }
+          }, e("span", null, "soldi fantasma ", e("span", { style: { color: K.blu, fontWeight: 700 } }, fant ? "\u2212" : "+")), Cifra(P.fantasma, { size: 12, col: K.tenue })),
+          fant ? e("div", { style: { paddingLeft: 10, borderLeft: "2px solid " + K.ottoneL, marginTop: 4, marginBottom: 4 } },
+            [["Quota di questo mese", P.quotaMese, P.buste.filter(function (x) { return x.quota > 0.004; }).map(function (x) { return x.nome + " \u20AC" + M.eur(x.quota); }).join(" \u00b7 ")],
+            ["Quote dei mesi scorsi", P.accPrima, P.buste.filter(function (x) { return Math.abs(x.accumulato - x.quota) > 0.004; }).map(function (x) { return x.nome + " \u20AC" + M.eur(M.c2(x.accumulato - x.quota)); }).join(" \u00b7 ")],
+            ["Risparmio dei mesi scorsi", P.salvPrima, "tassa messa via prima di questa paga"],
+            ["Risparmio di questo mese", P.salvOra, sim.giorniOk + " giorni rispettati finora"],
+            ["Risparmio dalle fisse", P.salvFisse, "bollette venute meno del previsto"]].map(function (r, i) {
+              if (Math.abs(r[1]) <= 0.004) return null;
+              return e("div", { key: i, style: { padding: "4px 0" } },
+                e("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: SANS, fontSize: 11.5 } },
+                  e("span", null, r[0]), Cifra(r[1], { size: 11.5, col: i < 2 ? K.ottone : K.verde })),
+                r[2] ? e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue, marginTop: 1 } }, r[2]) : null);
+            })) : null,
+          e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 3, lineHeight: 1.5, fontStyle: "italic" } },
+            "I soldi fantasma li leggi nell'estratto ma non sono n\u00e9 tuoi da spendere n\u00e9 fondo cassa: si vedono e non si toccano.")),
+        e("div", { key: "s3", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "9px 0", borderTop: "1px solid " + K.riga } },
+          e("span", null,
+            e("div", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, "Fisse ancora da pagare"),
+            e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 1 } },
+              "rate e abbonamenti \u20AC" + M.eur(P.totFisse) + " \u00b7 previsioni aperte \u20AC" + M.eur(P.totPreviste))),
+          Cifra(P.impegniFisse, { size: 17, peso: 700, col: K.rosso })),
+        e("div", { key: "s4", style: { marginTop: 4, paddingTop: 11, borderTop: "2px solid " + K.inchiostro } },
+          e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
+            e("span", { style: { fontFamily: SERIF, fontSize: 16, fontWeight: 700 } }, "Il tuo netto"),
+            e("span", { style: { fontFamily: MONO, fontVariantNumeric: "tabular-nums", fontSize: 30, fontWeight: 700, color: P.netto >= 0 ? K.inchiostro : K.rosso } }, "\u20AC" + M.eur(P.netto))),
+          e("div", { style: { fontFamily: SANS, fontSize: 12.5, color: K.tenue, marginTop: 3 } },
+            "\u20AC" + M.eur(P.alGiorno) + " al giorno per i " + P.giorniRimasti + " giorni che restano"),
+          (P.giorniAttesa !== P.giorniRimasti) ? e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.blu, marginTop: 2 } },
+            "\u20AC" + M.eur(P.alGiornoAttesa) + " se la paga arriva il " + M.lbl(M.ts(store.imp.prevista))) : null)
+      ], { accento: P.netto >= 0 ? K.verde : K.rosso }),
+
+      /* ===== LETTURA DEL SALDO ===== */
+      Scheda([
+        Etichetta("Aggiorna la lettura"),
         e("div", { key: "d", style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, lineHeight: 1.6, margin: "5px 0 9px" } },
-          "Guarda il saldo adesso e scrivilo. Se non coincide, la differenza \u00e8 una spesa che ti \u00e8 sfuggita o un'entrata che non sapevo: la registro come movimento e i conti tornano."),
+          "Guarda il saldo in banca adesso e scrivilo qui. Da questo momento in poi conteranno solo le spese registrate dopo: l'ora conta."),
         e("div", { key: "i", style: { display: "flex", gap: 8 } },
           Campo({ type: "number", inputMode: "decimal", mono: true, placeholder: "\u20AC saldo che leggi", value: saldoIn, onChange: function (x) { setSaldoIn(x.target.value); } }),
           Bottone("Registra", function () {
-            var n = parseFloat(String(saldoIn).replace(",", "."));
-            if (!(n > 0)) return;
-            agisci(function (s2) { M.leggiSaldo(s2, n); });
+            var n = parseFloat(saldoIn) || 0;
+            if (n <= 0) return;
+            agisci(function (s) { M.leggiSaldo(s, n); });
             setSaldoIn("");
           }, { largo: false, pad: "11px 16px" })),
         letto ? e("div", { key: "r", style: { marginTop: 12 } },
-          riga("Hai letto", letto.saldo, "il " + M.lblLungo(M.ts(letto.d)) + " alle " + new Date(M.evTs(letto)).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), { k: "l1" }),
-          riga("In quel momento dovevi avere", attesoAllora, null, { k: "l2", riga: true }),
-          e("div", { key: "l3", style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 6, paddingTop: 9, borderTop: "2px solid " + K.inchiostro } },
-            e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700, color: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) } },
-              quadra ? "I conti tornano" : (scarto < 0 ? "Mancano" : "Ci sono in pi\u00f9")),
-            Cifra(Math.abs(scarto), { size: 18, peso: 700, col: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) }))
+          RigaVoce("Il registro si aspettava", Cifra(st.attesoBanca)),
+          RigaVoce(e("b", { style: { color: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) } },
+            quadra ? "I conti tornano" : (scarto < 0 ? "Mancano all'appello" : "Ci sono in pi\u00f9")),
+            Cifra(Math.abs(scarto), { peso: 700, col: quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu) }), { ultima: true })
         ) : null,
-        (letto && !quadra) ? e("div", { key: "f", style: { marginTop: 12 } },
-          Bottone(scarto < 0 ? ("Registra \u20AC" + M.eur(-scarto) + " di spese dimenticate") : ("Registra \u20AC" + M.eur(scarto) + " di entrata non prevista"), function () {
-            chiedi({
-              tit: "Confermi?",
-              msg: (scarto < 0
-                ? "Registro un'uscita di \u20AC" + M.eur(-scarto) + ": il budget di questo mese scende della stessa cifra."
-                : "Registro un'entrata di \u20AC" + M.eur(scarto) + ": il budget di questo mese sale della stessa cifra.") +
-                "\n\nDopo, saldo previsto e saldo vero coincidono.",
-              conferma: "S\u00ec, registra",
-              onOk: function () {
-                // il movimento e' avvenuto PRIMA che tu leggessi il saldo: per questo la banca
-                // diceva un'altra cifra. Datandolo un attimo prima, lo scarto si chiude.
-                agisci(function (s2) {
-                  M.ev(s2, { t: "rett", imp: scarto, causa: "budget", d: M.iso(M.ts(letto.d)), ts: M.evTs(letto) - 1000 });
-                });
-              }
-            });
-          }, { col: scarto < 0 ? K.rosso : K.verde, size: 13 }),
-          st.accTot > 0.004 ? e("div", { style: { marginTop: 7 } },
-            Bottone("Oppure: le quote non le avevo messe da parte", function () { chiediBusta(scarto); }, { vuoto: true, col: K.ottone, size: 12 })) : null
+        letto && !quadra ? e("div", { key: "f", style: { marginTop: 11 } },
+          e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, marginBottom: 8, lineHeight: 1.6 } },
+            "Dimmi da dove viene la differenza, cos\u00ec il registro torna a dire la verit\u00e0:"),
+          e("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+            Bottone(scarto < 0 ? "Spese che non ho registrato" : "Soldi entrati che non sapevo", function () {
+              agisci(function (s) { M.rettifica(s, scarto, "budget", M.iso(oggi)); });
+            }, { vuoto: true, col: scarto < 0 ? K.rosso : K.verde, size: 12 }),
+            st.accTot > 0.004 ? Bottone("Le quote non le ho messe da parte davvero", function () {
+              chiediBusta(scarto);
+            }, { vuoto: true, col: K.ottone, size: 12 }) : null,
+            Bottone("Erano soldi del fondo cassa \u00b7 riparti da qui", function () {
+              chiedi({
+                tit: "Riparti da questa lettura",
+                msg: "Il fondo cassa passa da \u20AC" + M.eur(st.fc) + " a \u20AC" + M.eur(M.c2(st.fc + scarto)) +
+                  ".\n\nDa questo momento il saldo previsto e quello vero coincidono, e lo scostamento riparte da zero.",
+                conferma: "S\u00ec, riparti", 
+                onOk: function () {
+                  agisci(function (s2) { M.fissaFondoCassa(s2, M.c2(st.fc + scarto), "allineato alla lettura del " + M.lblLungo(M.ts(letto.d))); });
+                }
+              });
+            }, { vuoto: true, col: K.inchiostro, size: 12 }))
         ) : null
       ], { accento: letto ? (quadra ? K.verde : K.rosso) : K.riga }),
 
-      /* ---------- 3. IL NETTO ---------- */
       Scheda([
-        Etichetta("Quanto \u00e8 davvero tuo"),
-        e("div", { key: "r", style: { marginTop: 6 } },
-          riga("Sul conto", st.attesoBanca, null, { k: "n1" }),
-          riga("Fondo cassa", -st.fc, "non si tocca", { k: "n2", col: K.tenue, riga: true }),
-          e("div", { key: "n3", style: { borderTop: "1px solid " + K.riga } },
+        Etichetta("Di chi sono quei soldi"),
+        e("div", { key: "l", style: { marginTop: 8 } },
+          RigaVoce(e("span", null, "Fondo cassa ", e("span", { style: { color: K.tenue, fontSize: 11 } }, "deciso da te")), Cifra(st.fc)),
+          st.accTot > 0.004 ? RigaVoce("Accantonati nelle buste", Cifra(st.accTot, { col: K.ottone })) : null,
+          RigaVoce("Salvadanaio del risparmio", Cifra(st.salv, { col: K.verde })),
+          st.salvF > 0.004 ? RigaVoce("Salvadanaio delle bollette", Cifra(st.salvF, { col: K.verde })) : null,
+          RigaVoce(e("span", null, "Fisse ancora da pagare"), Cifra(st.impegnato, { col: K.rosso })),
+          Math.abs(st.fuoriApp) > 0.004 ? RigaVoce(
+          e("span", null, "Vecchi aggiustamenti ",
             e("button", {
-              onClick: function () { setFant(!fant); },
-              style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "baseline", background: "none", border: "none", padding: "8px 0", cursor: "pointer" }
-            },
-              e("span", { style: { textAlign: "left" } },
-                e("div", { style: { fontFamily: SANS, fontSize: 13, fontWeight: 500 } }, "Soldi fantasma ", e("span", { style: { color: K.blu, fontWeight: 700 } }, fant ? "\u2212" : "+")),
-                e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 1 } }, "li leggi sull'estratto ma non sono tuoi da spendere")),
-              Cifra(-st.fantasmaCorrente, { col: K.ottone })),
-            fant ? e("div", { style: { paddingLeft: 12, borderLeft: "2px solid " + K.ottoneL, marginBottom: 8 } },
-              vociFantasma.map(function (x, i) {
-                return e("div", { key: i, style: { display: "flex", justifyContent: "space-between", fontFamily: SANS, fontSize: 11.5, padding: "3px 0" } },
-                  e("span", null, x[0]), Cifra(x[1], { size: 11.5, col: x[2] }));
-              })) : null),
-          riga(e("span", null, "Fisse ancora da pagare",
-            fisseAperte.length ? e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 1, lineHeight: 1.45 } },
-              fisseAperte.map(function (x) {
-                return x.f.nome + " \u20AC" + M.eur(x.restaDaUscire) + (x.uscito > 0.004 ? (" (di \u20AC" + M.eur0(x.f.prev) + ", \u20AC" + M.eur(x.uscito) + " gi\u00e0 spesi)") : "");
-              }).join(" \u00b7 ")) : null),
-            -st.impegnato, null, { k: "n4", col: K.rosso, riga: true }),
-          e("div", { key: "n5", style: { marginTop: 6, paddingTop: 11, borderTop: "2px solid " + K.inchiostro } },
-            e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
-              e("span", { style: { fontFamily: SERIF, fontSize: 16, fontWeight: 700 } }, "Il tuo netto"),
-              e("span", { style: { fontFamily: MONO, fontVariantNumeric: "tabular-nums", fontSize: 30, fontWeight: 700, color: st.nettoTuo >= 0 ? K.inchiostro : K.rosso } }, "\u20AC" + M.eur(st.nettoTuo))),
-            e("div", { style: { fontFamily: SANS, fontSize: 12.5, color: K.tenue, marginTop: 3 } },
-              "\u20AC" + M.eur(alGiorno) + " al giorno per i " + giorniRimasti + " giorni che restano"),
-            giorniAttesa !== giorniRimasti ? e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.blu, marginTop: 2 } },
-              "\u20AC" + M.eur(M.c2(st.nettoTuo / giorniAttesa)) + " se la paga arriva il " + M.lbl(M.ts(store.imp.prevista))) : null))
-      ], { accento: st.nettoTuo >= 0 ? K.verde : K.rosso }),
+              onClick: function () {
+                chiedi({
+                  tit: "Togliere gli aggiustamenti?",
+                  msg: "Sono correzioni vecchie da \u20AC" + M.eur(st.fuoriApp) + " che restano appese e falsano il saldo previsto. Tolte quelle, l'atteso torna a \u20AC" +
+                    M.eur(M.c2(st.attesoBanca - st.fuoriApp)) + " e puoi riallinearlo con una lettura.",
+                  conferma: "Togli", pericolo: true,
+                  onOk: function () {
+                    agisci(function (s2) {
+                      s2.ev.filter(function (x) { return x.t === "rett" && x.causa === "fuori"; })
+                        .forEach(function (x) { M.togliEv(s2, x.id); });
+                    });
+                  }
+                });
+              },
+              style: { background: "none", border: "1px solid " + K.riga, borderRadius: 3, color: K.rosso, fontSize: 10.5, fontFamily: SANS, padding: "2px 6px", cursor: "pointer" }
+            }, "togli")),
+          Cifra(st.fuoriApp, { segno: true })) : null,
+          RigaVoce(e("b", null, "Tuoi da spendere fino alla paga"), Cifra(st.budget, { peso: 700, size: 16 }), { ultima: true })),
+        e("div", { key: "s", style: { marginTop: 11, padding: "10px 12px", background: K.carta, borderRadius: 3, fontFamily: SANS, fontSize: 12, lineHeight: 1.6 } },
+          e("b", null, "Non scendere sotto \u20AC" + M.eur(st.soglia) + "."), " \u00c8 il fondo cassa pi\u00f9 tutto quello che ci hai messo sopra e non hai ancora usato: sale ogni mese da solo, scende solo quando spendi davvero quei soldi.")
+      ]),
 
-      /* ---------- 4. IL DETTAGLIO DELLE USCITE ---------- */
       e("div", { key: "md", style: { marginBottom: 10 } },
-        Bottone(det ? "Nascondi le uscite" : "Vedi tutte le uscite di questo ciclo", function () { setDet(!det); }, { vuoto: true, col: K.inchiostro, size: 13 })),
-      det ? Scheda([
-        Etichetta("Uscite dal conto in questo ciclo"),
-        e("div", { key: "l", style: { marginTop: 6 } },
-          (function () {
-            var lista = [];
-            store.ev.forEach(function (x) {
-              var t = M.ts(x.d);
-              if (t < sim.ciclo.ini || t > sim.ciclo.fin) return;
-              var nome = null;
-              store.fisse.forEach(function (f) { if (f.id === x.fissaId) nome = f.nome; });
-              if (x.t === "spesa") lista.push({ d: x.d, ts: M.evTs(x), n: nome || x.nota || x.cat || "Spesa", v: x.imp, f: x.fonte });
-              if (x.t === "fissa") lista.push({ d: x.d, ts: M.evTs(x), n: (nome || "Voce fissa") + " \u00b7 bolletta", v: x.imp });
-              if (x.t === "rett") lista.push({ d: x.d, ts: M.evTs(x), n: x.imp < 0 ? "Spese dimenticate (dall'estratto)" : "Entrata non prevista", v: -x.imp });
-            });
-            sim.fisse.forEach(function (r) {
-              if (r.autoUscita) lista.push({ d: M.iso(r.scad), ts: r.scad, n: r.f.nome + " \u00b7 addebito automatico", v: r.f.prev });
-            });
-            lista.sort(function (a, b) { return b.ts - a.ts; });
-            if (!lista.length) return e("div", { style: { fontFamily: SANS, fontSize: 12.5, color: K.tenue, padding: "6px 0" } }, "Nessuna uscita registrata in questo ciclo.");
-            return lista.map(function (x, i) {
-              return e("div", { key: i, style: { display: "flex", justifyContent: "space-between", gap: 8, padding: "6px 0", borderBottom: "1px solid " + K.riga } },
-                e("span", { style: { flex: 1, minWidth: 0 } },
-                  e("div", { style: { fontFamily: SANS, fontSize: 12.5 } }, x.n),
-                  e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue } },
-                    M.lbl(M.ts(x.d)) + (x.f === "salv" ? " \u00b7 dal salvadanaio" : (x.f && x.f.indexOf("busta:") === 0 ? " \u00b7 da una busta" : "")))),
-                Cifra(x.v, { size: 12.5, col: x.v < 0 ? K.verde : K.inchiostro, segno: x.v < 0 }));
-            });
-          })()),
-        e("div", { key: "tt", style: { display: "flex", justifyContent: "space-between", marginTop: 9, paddingTop: 9, borderTop: "2px solid " + K.inchiostro } },
-          e("span", { style: { fontFamily: SERIF, fontSize: 14, fontWeight: 700 } }, "Totale uscito"),
-          Cifra(st.usciteReali, { size: 16, peso: 700, col: K.rosso }))
-      ]) : null
+        Bottone(det ? "Nascondi il prospetto" : "Mostra il prospetto completo",
+          function () { setDet(!det); }, { vuoto: true, col: K.inchiostro, size: 13 })),
+      det ? prospetto(letto, scarto, quadra) : null
+    );
+  }
+
+  /* ------------------------------------------------------------
+     IL PROSPETTO — riga per riga, cosa conto e cosa no
+     ------------------------------------------------------------ */
+  function Titolo(n, testo, sotto) {
+    return e("div", { style: { margin: "2px 0 9px" } },
+      e("div", { style: { display: "flex", alignItems: "baseline", gap: 7 } },
+        e("span", { style: { fontFamily: SERIF, fontSize: 20, fontWeight: 700, color: K.tenue } }, n),
+        e("span", { style: { fontFamily: SERIF, fontSize: 15, fontWeight: 700 } }, testo)),
+      sotto ? e("div", { style: { fontFamily: SANS, fontSize: 11, color: K.tenue, fontStyle: "italic", marginTop: 2, lineHeight: 1.5 } }, sotto) : null);
+  }
+  function Voce(sx, val, nota, opt) {
+    opt = opt || {};
+    return e("div", { key: opt.k, style: { padding: "6px 0", borderBottom: opt.ultima ? "none" : "1px solid " + K.riga } },
+      e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 } },
+        e("span", { style: Object.assign({ fontFamily: SANS, fontSize: 12.5, flex: 1, minWidth: 0, color: opt.spenta ? K.tenue : K.inchiostro, fontWeight: opt.forte ? 700 : 500 }, opt.barrata ? { textDecoration: "line-through" } : {}) }, sx),
+        e("span", { style: opt.barrata ? { textDecoration: "line-through" } : {} },
+          Cifra(val, { size: opt.forte ? 14 : 12.5, peso: opt.forte ? 700 : 600, col: opt.col || (opt.spenta ? K.tenue : K.inchiostro), segno: opt.segno }))),
+      nota ? e("div", { style: { fontFamily: SANS, fontSize: 10, color: K.tenue, marginTop: 1 } }, nota) : null);
+  }
+  function Somma(sx, val, col) {
+    return e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 7, paddingTop: 8, borderTop: "2px solid " + K.inchiostro } },
+      e("span", { style: { fontFamily: SERIF, fontSize: 14, fontWeight: 700 } }, sx),
+      Cifra(val, { size: 17, peso: 700, col: col }));
+  }
+
+  function prospetto(letto, scarto, quadra) {
+    var g = sim.oggiG;
+    var fuori = sim.fisse.filter(function (x) { return x.fuori; });
+    var dentro = sim.fisse.filter(function (x) { return !x.fuori && x.restaDaUscire > 0.004; });
+    var nulle = sim.fisse.filter(function (x) { return !x.fuori && x.restaDaUscire <= 0.004; });
+    var buste = store.buste.filter(function (b) { return (st.acc[b.id] || 0) > 0.004; });
+
+    return e("div", { style: { marginBottom: 14 } },
+
+      /* 1 */
+      Scheda([
+        Titolo("1", "Quello che c'\u00e8 ma non \u00e8 da spendere",
+          "Sono soldi fermi sul conto. Li tolgo sempre, prima di ogni altro calcolo."),
+        Voce("Fondo cassa", st.fc, "la cifra che hai deciso tu di non toccare", { k: "fc" }),
+        buste.length ? e("div", { key: "bt" },
+          Voce("Buste, gi\u00e0 accantonato", st.accTot, buste.length + (buste.length === 1 ? " busta aperta" : " buste aperte"), { k: "b0", col: K.ottone }),
+          e("div", { style: { paddingLeft: 12, marginTop: -2 } }, buste.map(function (b) {
+            return Voce(b.icona + " " + b.nome, st.acc[b.id] || 0,
+              (M.scadBusta(store, b) ? ("serve il " + M.lblLungo(M.scadBusta(store, b))) : "fondo continuo"),
+              { k: b.id, spenta: true });
+          }))) : null,
+        Voce("Salvadanaio del risparmio", st.salv, sim.giorniOk + " giorni rispettati in questo ciclo", { k: "sv", col: K.verde }),
+        st.salvF > 0.004 ? Voce("Salvadanaio delle bollette", st.salvF, "differenza fra il previsto e quanto \u00e8 venuta davvero", { k: "sf", col: K.verde }) : null,
+        Somma("Totale intoccabile", st.soglia, K.inchiostro),
+        e("div", { key: "n1", style: { marginTop: 8, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.65 } },
+          "Sotto questa cifra il conto non deve scendere. Cresce da sola ogni mese con le quote e con il risparmio, e cala solo quando quei soldi li spendi davvero per lo scopo per cui li avevi messi via.")
+      ]),
+
+      /* 2 */
+      Scheda([
+        Titolo("2", "Le spese fisse di questo ciclo",
+          "Prima quelle gi\u00e0 uscite, che non conto pi\u00f9. Poi quelle che devono ancora uscire."),
+
+        e("div", { key: "a", style: { marginTop: 4, marginBottom: 6 } },
+          Etichetta("Gi\u00e0 uscite \u00b7 non le conto", K.verde)),
+        fuori.length ? fuori.map(function (x) {
+          return Voce(x.f.icona + " " + x.f.nome, x.uscitaEffettiva,
+            x.chiusa ? ("confermata da te" + (x.risparmio > 0.004 ? (" \u00b7 \u20AC" + M.eur(x.risparmio) + " risparmiati sul previsto") : (x.sforo > 0.004 ? (" \u00b7 \u20AC" + M.eur(x.sforo) + " oltre il previsto") : "")))
+              : ("addebito automatico del " + M.lbl(x.scad) + " \u00b7 importo previsto, correggilo dal Piano se \u00e8 diverso"),
+            { k: "u" + x.f.id, barrata: true, spenta: true });
+        }) : e("div", { key: "v1", style: { fontFamily: SANS, fontSize: 12, color: K.tenue, padding: "4px 0 8px" } }, "Nessuna, per ora."),
+        fuori.length ? e("div", { key: "t1", style: { display: "flex", justifyContent: "space-between", padding: "6px 0", fontFamily: SANS, fontSize: 12.5, fontWeight: 700 } },
+          e("span", null, "Gi\u00e0 uscito dal conto"), Cifra(sim.uscitoFisse, { size: 13, peso: 700, col: K.tenue })) : null,
+
+        e("div", { key: "b", style: { marginTop: 14, marginBottom: 6 } },
+          Etichetta("Ancora da pagare \u00b7 le tengo da parte", K.ottone)),
+        dentro.length ? dentro.map(function (x) {
+          return Voce(x.f.icona + " " + x.f.nome, x.restaDaUscire,
+            x.uscito > 0.004 ? ("previsti \u20AC" + M.eur(x.f.prev) + ", gi\u00e0 spesi \u20AC" + M.eur(x.uscito) + ": tengo da parte solo il resto")
+              : (x.scad ? ("esce il " + M.lbl(x.scad)) : (x.f.blind ? "importo fisso, senza data" : "previsione da confermare")),
+            { k: "d" + x.f.id, col: K.ottone });
+        }) : e("div", { key: "v2", style: { fontFamily: SANS, fontSize: 12, color: K.tenue, padding: "4px 0 8px" } }, "Nessuna: tutte le fisse sono gi\u00e0 uscite."),
+        nulle.length ? e("div", { key: "nl", style: { marginTop: 6 } }, nulle.map(function (x) {
+          return Voce(x.f.icona + " " + x.f.nome, 0, "previsione a zero: non incide", { k: "z" + x.f.id, spenta: true });
+        })) : null,
+        Somma("Da tenere da parte", sim.impegnato, K.ottone),
+        e("div", { key: "n2", style: { marginTop: 8, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.65 } },
+          "Sul budget del mese, per\u00f2, ogni voce pesa comunque per il suo previsto \u2014 anche se non \u00e8 ancora uscita, e anche se poi verr\u00e0 meno. \u00c8 la regola che impedisce di spendere due volte gli stessi soldi. Totale che pesa sul budget: \u20AC" + M.eur(sim.fissePesano) + ".")
+      ]),
+
+      /* 3 */
+      Scheda([
+        Titolo("3", "Il budget di questo ciclo",
+          "Dal " + M.lblLungo(sim.ciclo.ini) + " al " + M.lblLungo(sim.ciclo.fin) + " \u00b7 " + sim.giorniTot + " giorni"),
+        Voce("Stipendio accreditato", sim.ciclo.stip, M.lblLungo(sim.ciclo.ini), { k: "s" }),
+        Voce("Spese fisse, al previsto", -sim.fissePesano, "tutte le voci del Piano, uscite e non", { k: "f", col: K.rosso }),
+        sim.quote > 0.004 ? Voce("Quote delle buste", -sim.quote, "messe via questo mese per le spese future", { k: "q", col: K.ottone }) : null,
+        Voce("Disponibile per vivere", sim.disponibile, "\u00f7 " + sim.giorniTot + " giorni = \u20AC" + M.eur(v.bIni) + " al giorno di partenza", { k: "dp", forte: true }),
+        e("div", { key: "sep", style: { height: 8 } }),
+        Voce("Speso nei giorni passati", -(sim.speso - g.speso), (g.idx) + (g.idx === 1 ? " giorno chiuso" : " giorni chiusi"), { k: "sp", col: K.rosso }),
+        Voce("Speso oggi", -g.speso, "fino a questo momento", { k: "so", col: K.rosso }),
+        sim.tassa > 0.004 ? Voce("Messo nel salvadanaio", -sim.tassa,
+          sim.giorniOk + (sim.giorniOk === 1 ? " giorno pieno da \u20AC" : " giorni pieni da \u20AC") + M.eur(store.imp.tassa) +
+          (sim.giorniParziali > 0 ? (" + " + sim.giorniParziali + (sim.giorniParziali === 1 ? " giorno parziale" : " giorni parziali")) : ""),
+          { k: "ts", col: K.verde }) : null,
+        sim.dist > 0.004 ? Voce("Ripreso dal salvadanaio", sim.dist, "riportato nel budget", { k: "ds", col: K.verde, segno: true }) : null,
+        Math.abs(sim.rett) > 0.004 ? Voce("Rettifiche sul budget", sim.rett, "differenze attribuite al mese", { k: "rt", segno: true }) : null,
+        Somma("Ti restano fino alla paga", sim.residuo, sim.residuo >= 0 ? K.inchiostro : K.rosso),
+        e("div", { key: "n3", style: { marginTop: 8, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.65 } },
+          "Divisi per i " + g.rimasti + " giorni che restano fanno \u20AC" + M.eur(v.bOggi) + " al giorno. " +
+          (v.giorniAut > 900 ? "" : ("Al ritmo che stai tenendo (\u20AC" + M.eur(v.ritmo) + " al giorno) coprono " + v.giorniAut + " giorni: " + (v.arrivi ? "arrivi alla paga." : "ti fermi il " + M.lbl(v.esaurimento) + "."))))
+      ]),
+
+      /* 4 */
+      Scheda([
+        Titolo("4", "La somma",
+          "Tutto quello che il registro sa, sommato. Deve dare il saldo della banca."),
+        Voce("Intoccabile (punto 1)", st.soglia, "fondo cassa, buste, salvadanai", { k: "p1" }),
+        Voce("Fisse da pagare (punto 2)", sim.impegnato, "sul conto, ma gi\u00e0 impegnate", { k: "p2", col: K.ottone }),
+        Voce("Budget che ti resta (punto 3)", sim.budget != null ? st.budget : sim.residuo, "gli unici soldi davvero tuoi da spendere", { k: "p3" }),
+        Math.abs(st.fuoriApp) > 0.004 ? Voce("Vecchi aggiustamenti", st.fuoriApp, "correzioni rimaste appese: puoi toglierle dal riquadro \u201cDi chi sono quei soldi\u201d", { k: "p4", segno: true, col: K.rosso }) : null,
+        Somma("Sul conto dovrebbero esserci", st.attesoBanca, K.inchiostro),
+        e("div", { key: "n4", style: { marginTop: 8, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.65 } },
+          "Nessuno di questi numeri \u00e8 memorizzato: nascono tutti dai " + store.ev.length + " movimenti del registro. Se ne cancelli uno, l'intero prospetto si rif\u00e0 da capo.")
+      ], { accento: K.inchiostro }),
+
+      /* 5 */
+      letto ? Scheda([
+        Titolo("5", "Il confronto con la banca",
+          "L'unica prova che il registro dice la verit\u00e0."),
+        Voce("Saldo letto", letto.saldo, "il " + M.lblLungo(M.ts(letto.d)), { k: "l1" }),
+        Voce("Saldo atteso", st.attesoBanca, "somma del punto 4", { k: "l2" }),
+        Somma(quadra ? "I conti tornano" : (scarto < 0 ? "Mancano all'appello" : "Ci sono in pi\u00f9"),
+          Math.abs(scarto), quadra ? K.verde : (scarto < 0 ? K.rosso : K.blu)),
+        e("div", { key: "n5", style: { marginTop: 9, fontFamily: SANS, fontSize: 11.5, color: K.tenue, lineHeight: 1.65 } },
+          quadra ? "Scarto sotto i due euro: il registro e la banca raccontano la stessa storia."
+            : (scarto < 0
+              ? "In banca c'\u00e8 meno di quanto il registro si aspetta. Le cause tipiche: una spesa non registrata, un addebito arrivato per un importo diverso dal previsto, una commissione. Con i due pulsanti qui sopra decidi se lo scarto deve pesare sul budget del mese o solo sul conto."
+              : "In banca c'\u00e8 pi\u00f9 di quanto il registro si aspetta: un rimborso, un accredito che non conoscevo, o una fissa che non \u00e8 ancora uscita davvero. Decidi se aggiungerli al budget o lasciarli sul conto."))
+      ], { accento: quadra ? K.verde : K.rosso }) : Scheda([
+        Titolo("5", "Il confronto con la banca", "Manca l'unico dato che non posso calcolare."),
+        e("div", { key: "v", style: { fontFamily: SANS, fontSize: 12.5, color: K.tenue, lineHeight: 1.65 } },
+          "Scrivi il saldo che leggi in banca nel riquadro qui sopra: da quel momento l'app sa se il registro \u00e8 allineato con la realt\u00e0.")
+      ])
     );
   }
 
