@@ -1676,6 +1676,7 @@ function Nastro(sim, vista, oggi) {
 /* ============================================================
    APP
    ============================================================ */
+var VERSIONE = "3.1 \u00b7 catena unica";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
 var CHIAVE = "budget-v2";
 /* ════════════════════════════════════════════════════════════
    BLOCCO BONIFICA
@@ -3261,6 +3262,8 @@ function App() {
       Scheda([
         e("div", { key: "n", style: { fontFamily: SANS, fontSize: 12, color: K.tenue, lineHeight: 1.6 } },
           store.ev.length + " movimenti registrati. Nessun totale \u00e8 salvato: se cancelli un movimento, tutti i numeri dell'app si ricalcolano da soli."),
+        e("div", { key: "ver", style: { marginTop: 8, paddingTop: 8, borderTop: "1px solid " + K.riga, fontFamily: MONO, fontSize: 11, color: K.tenue } },
+          "versione " + VERSIONE),
         e("div", { key: "b", style: { display: "flex", gap: 7, marginTop: 10 } },
           Bottone("Scarica una copia", function () {
             var testo = JSON.stringify(store);
@@ -3294,7 +3297,9 @@ function App() {
     /* testata */
     e("div", { style: { padding: "16px 0 12px", borderBottom: "2px solid " + K.inchiostro, marginBottom: 14 } },
       e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
-        e("div", { style: { fontFamily: SERIF, fontSize: 21, fontWeight: 400, letterSpacing: .2 } }, "Registro di casa"),
+        e("div", null,
+          e("div", { style: { fontFamily: SERIF, fontSize: 21, fontWeight: 400, letterSpacing: .2 } }, "Registro di casa"),
+          e("div", { style: { fontFamily: MONO, fontSize: 9.5, color: K.tenue, letterSpacing: .5 } }, "v" + VERSIONE)),
         e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue } },
           M.lblGiorno(oggi) + " " + M.lbl(oggi))),
       e("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: SANS, fontSize: 11, color: K.tenue } },
