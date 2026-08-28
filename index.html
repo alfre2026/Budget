@@ -656,7 +656,7 @@ var M = (function () {
     return c2(fc);
   }
 
-  function simula(store, ciclo, oggi, quotePer) {
+  function simula(store, ciclo, oggi, quotePer, scostamento) {
     var imp = store.imp;
     var fisse = statoFisse(store, ciclo, oggi);
     var fissePesano = fisse.reduce(function (a, r) { return a + r.pesa; }, 0);
@@ -664,7 +664,13 @@ var M = (function () {
     var quote = 0;
     store.buste.forEach(function (b) { quote += (quotePer[b.id] || 0); });
 
-    var disponibile = c2(ciclo.stip - fissePesano - quote);
+    /* Il disponibile nasce dallo stipendio meno gli impegni, ma poi si riallinea
+       a quello che dice la banca. Se una lettura non ha quadrato e la differenza
+       e' rimasta sospesa, quella differenza e' denaro vero: o c'e' o non c'e', e
+       il budget di ogni giorno deve saperlo. Prima il budget viveva per conto suo
+       e la pagina Conto diceva un'altra cifra, senza che nulla lo segnalasse. */
+    var disponibileTeorico = c2(ciclo.stip - fissePesano - quote);
+    var disponibile = c2(disponibileTeorico + (scostamento || 0));
 
     // spese variabili del ciclo (fonte budget), per giorno
     var perGiorno = {};
@@ -757,7 +763,8 @@ var M = (function () {
 
     return {
       ciclo: ciclo, fisse: fisse, fissePesano: c2(fissePesano), quote: c2(quote), quotePer: quotePer,
-      disponibile: disponibile, giorni: giorni, oggiG: ultimoG,
+      disponibile: disponibile, disponibileTeorico: disponibileTeorico,
+      scostamento: c2(scostamento || 0), giorni: giorni, oggiG: ultimoG,
       speso: speso, tassa: tassaTot, dist: c2(dist), rett: c2(rett), residuo: residuo,
       impegnato: c2(impegnato), uscitoFisse: c2(uscitoFisse), salvFisse: c2(salvFisse), sforoFisse: c2(sforoFisse),
       giorniTot: giorniTot, giorniOk: giorniOk, giorniPersi: giorniPersi,
@@ -768,7 +775,7 @@ var M = (function () {
   /* ============================================================
      STATO COMPLETO
      ============================================================ */
-  function stato(store, oggi) {
+  function statoGrezzo(store, oggi, scostamento) {
     oggi = oggi || oggiTs();
     var imp = store.imp;
     var lista = cicli(store, oggi);
@@ -780,7 +787,7 @@ var M = (function () {
     for (var i = 0; i < lista.length; i++) {
       var c = lista[i];
       var attivo = oggi >= c.ini && oggi <= c.fin;
-      var sim = simula(store, c, oggi, piano.quote[i]);
+      var sim = simula(store, c, oggi, piano.quote[i], attivo ? scostamento : 0);
       if (attivo) { corrente = c; simCorrente = sim; }
       salv = c2(salv + sim.tassa);
       salvF = c2(salvF + sim.salvFisse);
@@ -850,6 +857,29 @@ var M = (function () {
       // soglia sotto cui non scendere: e' denaro che c'e' ma non e' tuo da spendere
       soglia: c2(fc + accTot + salv + salvF)
     };
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     UNA SOLA CATENA
+     Il budget del ciclo e il netto della pagina Conto sono due modi
+     di dire la stessa cosa. Qui si costringono a coincidere: si
+     calcola quanto manca e lo si rimette nel disponibile, finche'
+     la differenza e' zero. Quello che serve a farli combaciare e'
+     lo "scarto aperto": una lettura che non ha mai quadrato, e che
+     ora si vede invece di restare nascosta in mezzo ai conti.
+     ════════════════════════════════════════════════════════════ */
+  function stato(store, oggi) {
+    var off = 0, st = null;
+    for (var i = 0; i < 8; i++) {
+      st = statoGrezzo(store, oggi, off);
+      if (!st.sim) break;
+      var netto = c2(st.attesoBanca - st.fc - st.accTot - st.salv - st.salvF - st.impegnato);
+      var d = c2(netto - st.budget);
+      if (Math.abs(d) < 0.005) break;
+      off = c2(off + d);
+    }
+    if (st) st.scartoAperto = c2(off);
+    return st;
   }
 
   /* ============================================================
@@ -2005,6 +2035,11 @@ function App() {
           RigaVoce("Stipendio del ciclo", Cifra(sim.ciclo.stip)),
           RigaVoce(e("span", null, "Spese fisse ", e("span", { style: { color: K.tenue, fontSize: 11 } }, "(al previsto o pi\u00f9)")), Cifra(-sim.fissePesano, { col: K.rosso })),
           sim.quote > 0.004 ? RigaVoce("Quote delle buste", Cifra(-sim.quote, { col: K.ottone })) : null,
+          RigaVoce("Stipendio meno gli impegni", Cifra(sim.disponibileTeorico)),
+          Math.abs(sim.scostamento) > 0.004 ? RigaVoce(
+            e("span", null, "Differenza dell'estratto conto",
+              e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 letture che non quadravano")),
+            Cifra(sim.scostamento, { col: sim.scostamento < 0 ? K.rosso : K.blu, segno: true })) : null,
           RigaVoce(e("b", null, "Disponibile per vivere"), Cifra(sim.disponibile, { peso: 700 })),
           RigaVoce("Speso nei giorni passati", Cifra(-(sim.speso - g.speso), { col: K.rosso })),
           sim.tassa > 0.004 ? RigaVoce("Gi\u00e0 messo nel salvadanaio", Cifra(-sim.tassa, { col: K.verde })) : null,
@@ -2938,6 +2973,9 @@ function App() {
         Voce("Stipendio accreditato", sim.ciclo.stip, M.lblLungo(sim.ciclo.ini), { k: "s" }),
         Voce("Spese fisse, al previsto", -sim.fissePesano, "tutte le voci del Piano, uscite e non", { k: "f", col: K.rosso }),
         sim.quote > 0.004 ? Voce("Quote delle buste", -sim.quote, "messe via questo mese per le spese future", { k: "q", col: K.ottone }) : null,
+        Math.abs(sim.scostamento) > 0.004 ? Voce("Differenza dell'estratto conto", sim.scostamento,
+          "letture che non hanno mai quadrato: sono soldi veri, o ci sono o non ci sono",
+          { k: "sq", segno: true, col: sim.scostamento < 0 ? K.rosso : K.blu }) : null,
         Voce("Disponibile per vivere", sim.disponibile, "\u00f7 " + sim.giorniTot + " giorni = \u20AC" + M.eur(v.bIni) + " al giorno di partenza", { k: "dp", forte: true }),
         e("div", { key: "sep", style: { height: 8 } }),
         Voce("Speso nei giorni passati", -(sim.speso - g.speso), (g.idx) + (g.idx === 1 ? " giorno chiuso" : " giorni chiusi"), { k: "sp", col: K.rosso }),
@@ -2947,7 +2985,7 @@ function App() {
           (sim.giorniParziali > 0 ? (" + " + sim.giorniParziali + (sim.giorniParziali === 1 ? " giorno parziale" : " giorni parziali")) : ""),
           { k: "ts", col: K.verde }) : null,
         sim.dist > 0.004 ? Voce("Ripreso dal salvadanaio", sim.dist, "riportato nel budget", { k: "ds", col: K.verde, segno: true }) : null,
-        Math.abs(sim.rett) > 0.004 ? Voce("Rettifiche sul budget", sim.rett, "differenze attribuite al mese", { k: "rt", segno: true }) : null,
+        Math.abs(sim.rett) > 0.004 ? Voce("Soldi liberati nel mese", sim.rett, "fondo cassa abbassato, accantonamenti corretti, entrate", { k: "rt", segno: true }) : null,
         Somma("Ti restano fino alla paga", sim.residuo, sim.residuo >= 0 ? K.inchiostro : K.rosso),
         e("div", { key: "n3", style: { marginTop: 8, fontFamily: SANS, fontSize: 11, color: K.tenue, lineHeight: 1.65 } },
           "Divisi per i " + g.rimasti + " giorni che restano fanno \u20AC" + M.eur(v.bOggi) + " al giorno. " +
