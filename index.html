@@ -1676,7 +1676,7 @@ function Nastro(sim, vista, oggi) {
 /* ============================================================
    APP
    ============================================================ */
-var VERSIONE = "3.3 \u00b7 teorico e reale";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
+var VERSIONE = "3.4 \u00b7 ripulitura";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
 var CHIAVE = "budget-v2";
 /* ════════════════════════════════════════════════════════════
    BLOCCO BONIFICA
@@ -1684,6 +1684,23 @@ var CHIAVE = "budget-v2";
    due catene diverse, o una sola. Qui diventano movimenti veri, che
    e' quello che sono sempre state. Gira una volta, poi resta fatta.
    ════════════════════════════════════════════════════════════ */
+/* Un movimento nato dalla conversione di una vecchia rettifica. Non e'
+   denaro: e' la cicatrice di un meccanismo che scriveva una riga sola per
+   spiegare una differenza, e quella riga finiva in una catena e non
+   nell'altra. Si riconoscono dalla nota che la bonifica ha lasciato. */
+function artefatti(s) {
+  var NOTA = "differenza sull'estratto conto";
+  var out = { spese: [], entrate: [], totSpese: 0, totEntrate: 0 };
+  (s.ev || []).forEach(function (e) {
+    if ((e.nota || "") !== NOTA) return;
+    if (e.t === "spesa") { out.spese.push(e); out.totSpese = M.c2(out.totSpese + e.imp); }
+    else if (e.t === "entrata") { out.entrate.push(e); out.totEntrate = M.c2(out.totEntrate + e.imp); }
+  });
+  out.n = out.spese.length + out.entrate.length;
+  out.saldo = M.c2(out.totEntrate - out.totSpese);
+  return out;
+}
+
 function bonifica(s) {
   if (!s || !s.ev || s.bonificato) return s;
   var n = 0;
@@ -3482,6 +3499,50 @@ function App() {
             });
           }, { vuoto: true, col: K.rosso, size: 12 }))
       ]),
+      /* ════════════════════════════════════════════════════════
+         BLOCCO RIPULITURA
+         Le vecchie rettifiche, diventate spese ed entrate finte.
+         Toglierle non cambia di un euro quello che hai davvero:
+         il saldo previsto nasce dall'estratto conto, e l'estratto
+         conto non sa niente di queste righe. Cambia solo che i
+         numeri sullo schermo tornano a somigliare alla realta'.
+         ════════════════════════════════════════════════════════ */
+      (function () {
+        var a = artefatti(store);
+        if (!a.n) return null;
+        return Scheda([
+          Etichetta("Movimenti finti da ripulire", K.ottone),
+          e("div", { key: "a", style: { marginTop: 8, fontFamily: SANS, fontSize: 12.5, lineHeight: 1.65 } },
+            "Ci sono ", e("b", null, a.n + (a.n === 1 ? " movimento" : " movimenti")),
+            " nati dalle vecchie rettifiche: righe che la versione precedente scriveva per chiudere una differenza sull'estratto conto. ",
+            e("b", null, "Non sono soldi."), " Gonfiano le spese e le entrate della stessa cifra e si annullano quasi fra loro."),
+          e("div", { key: "b", style: { marginTop: 10 } },
+            RigaVoce("Spese finte", Cifra(-a.totSpese, { col: K.rosso })),
+            RigaVoce("Entrate finte", Cifra(a.totEntrate, { col: K.verde, segno: true })),
+            RigaVoce(e("b", null, "Effetto vero sul budget"), Cifra(a.saldo, { peso: 700, segno: true }), { ultima: true })),
+          e("div", { key: "c", style: { marginTop: 9, padding: "9px 11px", background: K.carta, borderRadius: 3, fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: K.tenue } },
+            "Toglierle non cambia quanto hai in banca: il saldo previsto nasce dall'ultimo estratto conto, che di queste righe non sa niente. Cambia solo il ",
+            e("b", null, "calcolo teorico"), ", che smette di raccontare spese e entrate mai avvenute."),
+          e("div", { key: "d", style: { marginTop: 10 } },
+            Bottone("Togli i " + a.n + " movimenti finti", function () {
+              chiedi({
+                tit: "Tolgo i movimenti finti?",
+                msg: a.n + " righe nate dalle vecchie rettifiche: \u20AC" + M.eur(a.totSpese) + " di spese e \u20AC" +
+                     M.eur(a.totEntrate) + " di entrate mai avvenute.\n\nIl saldo previsto non cambia. Se poi qualcosa non torna, registra un estratto conto e il registro si rimette in riga da solo.",
+                conferma: "Toglile",
+                onOk: function () {
+                  agisci(function (c) {
+                    var morti = {};
+                    artefatti(c).spese.concat(artefatti(c).entrate).forEach(function (x) { morti[x.id] = 1; });
+                    c.ev = c.ev.filter(function (x) { return !morti[x.id]; });
+                    c.del = (c.del || []).concat(Object.keys(morti));
+                  });
+                }
+              });
+            }, { col: K.ottone }))
+        ], { accento: K.ottone });
+      })(),
+
       store.migrato ? Scheda([e("div", { key: "m", style: { fontFamily: SANS, fontSize: 12, lineHeight: 1.6 } },
         e("b", null, "Dati importati dalla versione precedente."), " Spese, voci fisse, buste, fondo cassa e salvadanaio sono stati trasformati in movimenti. La vecchia app resta intatta: se qualcosa non torna, ce l'hai ancora.")], { accento: K.blu }) : null
     );
