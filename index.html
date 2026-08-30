@@ -1676,7 +1676,7 @@ function Nastro(sim, vista, oggi) {
 /* ============================================================
    APP
    ============================================================ */
-var VERSIONE = "3.1 \u00b7 catena unica";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
+var VERSIONE = "3.3 \u00b7 teorico e reale";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
 var CHIAVE = "budget-v2";
 /* ════════════════════════════════════════════════════════════
    BLOCCO BONIFICA
@@ -1824,6 +1824,9 @@ function App() {
   var _det = us(false), det = _det[0], setDet = _det[1];
   var _fant = us(false), fant = _fant[0], setFant = _fant[1];
   var _diag = us(false), diag = _diag[0], setDiag = _diag[1];
+  var _pDa = us(""), pDa = _pDa[0], setPDa = _pDa[1];
+  var _pA = us(""), pA = _pA[0], setPA = _pA[1];
+  var _teo = us(false), teo = _teo[0], setTeo = _teo[1];
   var _apDiag = us({}), apDiag = _apDiag[0], setApDiag = _apDiag[1];
   var primo = ur(true);
 
@@ -2045,11 +2048,125 @@ function App() {
           RigaVoce("Speso nei giorni passati", Cifra(-(sim.speso - g.speso), { col: K.rosso })),
           sim.tassa > 0.004 ? RigaVoce("Gi\u00e0 messo nel salvadanaio", Cifra(-sim.tassa, { col: K.verde })) : null,
           sim.dist > 0.004 ? RigaVoce("Ripreso dal salvadanaio", Cifra(sim.dist, { col: K.verde, segno: true })) : null,
-          RigaVoce(e("b", null, "Base di oggi"), Cifra(g.base, { peso: 700 }), { ultima: true })),
+          Math.abs(sim.rett) > 0.004 ? RigaVoce(
+            e("span", null, "Soldi liberati nel mese",
+              e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 entrate, fondo cassa, correzioni")),
+            Cifra(sim.rett, { col: sim.rett < 0 ? K.rosso : K.verde, segno: true })) : null,
+          RigaVoce(e("b", null, "Base di oggi"), Cifra(g.base, { peso: 700 }), { ultima: true }),
+          (function () {
+            var somma = M.c2(sim.disponibile - (sim.speso - g.speso) - sim.tassa + sim.dist + sim.rett);
+            var resto = M.c2(g.base - somma);
+            return Math.abs(resto) > 0.004 ? RigaVoce(
+              e("span", { style: { color: K.rosso } }, "Non quadra di"),
+              Cifra(resto, { col: K.rosso, segno: true }), { ultima: true }) : null;
+          })()),
         e("div", { key: "f", style: { marginTop: 10, padding: "10px 12px", background: K.carta, borderRadius: 3, textAlign: "center", fontFamily: MONO, fontSize: 14, fontWeight: 600 } },
           "\u20AC" + M.eur0(g.base) + " \u00F7 " + g.rimasti + " giorni = ",
           e("span", { style: { color: K.inchiostro, fontWeight: 700 } }, "\u20AC" + M.eur(v.bOggi)))
       ]),
+
+      /* ════════════════════════════════════════════════════════
+         BLOCCO TEORICO-CONTRO-REALE
+         Il conto fatto a mano, come lo faresti su un foglio:
+         stipendio, meno tutto quello che e' uscito dal giorno
+         della paga a oggi, meno quello che deve ancora uscire,
+         diviso i giorni che restano. Accanto, lo stesso numero
+         calcolato partendo dall'estratto conto. Se i due non
+         coincidono, la distanza fra loro e' esattamente quello
+         che il registro non sa.
+         ════════════════════════════════════════════════════════ */
+      (function () {
+        var ini = sim.ciclo.ini, fin = Math.min(oggi, sim.ciclo.fin);
+        // ogni euro uscito dal conto dal giorno della paga a oggi
+        var perGiorno = {}, totUscito = 0;
+        store.ev.forEach(function (ee) {
+          if (ee.t !== "spesa" && ee.t !== "fissa") return;
+          var t = M.ts(ee.d);
+          if (t < ini || t > fin) return;
+          perGiorno[t] = M.c2((perGiorno[t] || 0) + ee.imp);
+          totUscito = M.c2(totUscito + ee.imp);
+        });
+        // addebiti automatici gia' scattati: sono usciti anche se non li hai confermati
+        var totAuto = 0;
+        sim.fisse.forEach(function (r) {
+          if (!r.autoUscita || r.scad == null || r.scad < ini || r.scad > fin) return;
+          perGiorno[r.scad] = M.c2((perGiorno[r.scad] || 0) + r.f.prev);
+          totAuto = M.c2(totAuto + r.f.prev);
+        });
+        totUscito = M.c2(totUscito + totAuto);
+
+        var giorni = Object.keys(perGiorno).map(Number).sort(function (a, b) { return a - b; });
+        var corrente = 0;
+        var righe = giorni.map(function (t) {
+          corrente = M.c2(corrente + perGiorno[t]);
+          var prog = corrente;
+          return e("div", { key: t, style: { display: "flex", gap: 10, padding: "5px 0", borderBottom: "1px solid " + K.riga, fontFamily: MONO, fontSize: 12 } },
+            e("span", { style: { width: 58, flex: "none", color: K.tenue } }, M.lblGiorno ? M.lblGiorno(t) : M.lbl(t)),
+            e("span", { style: { flex: 1, textAlign: "right" } }, "\u20AC" + M.eur(perGiorno[t])),
+            e("span", { style: { width: 76, textAlign: "right", color: K.tenue } }, "\u20AC" + M.eur(prog)));
+        });
+
+        var restaStip = M.c2(sim.ciclo.stip - totUscito);
+        var daAffrontare = M.c2(sim.impegnato + sim.quote);
+        var totTeorico = M.c2(restaStip - daAffrontare - sim.tassa + sim.dist + sim.rett);
+        var gg = Math.max(1, g.rimasti);
+        var alGiornoTeorico = M.c2(totTeorico / gg);
+        var alGiornoReale = M.c2(g.base / gg);
+        var scarto = M.c2(alGiornoReale - alGiornoTeorico);
+
+        return Scheda([
+          Etichetta("Il conto a mano \u00b7 dal giorno della paga"),
+          e("div", { key: "a", style: { marginTop: 8 } },
+            RigaVoce("Stipendio del " + M.lbl(ini), Cifra(sim.ciclo.stip)),
+            RigaVoce(
+              e("span", null, "Uscito dal conto da allora",
+                e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 " + giorni.length + (giorni.length === 1 ? " giorno" : " giorni"))),
+              Cifra(-totUscito, { col: K.rosso })),
+            RigaVoce(e("b", null, "Resta dello stipendio"), Cifra(restaStip, { peso: 700 }))),
+
+          righe.length ? e("div", { key: "b", style: { marginTop: 4 } },
+            Bottone(teo ? "Nascondi il dettaglio giorno per giorno" : "Mostra il dettaglio giorno per giorno",
+              function () { setTeo(!teo); }, { vuoto: true, col: K.tenue, size: 12, pad: "8px 10px" })) : null,
+          teo ? e("div", { key: "c", style: { marginTop: 8, maxHeight: 260, overflowY: "auto", paddingRight: 2 } },
+            e("div", { style: { display: "flex", gap: 10, paddingBottom: 4, fontFamily: SANS, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: K.tenue } },
+              e("span", { style: { width: 58, flex: "none" } }, "giorno"),
+              e("span", { style: { flex: 1, textAlign: "right" } }, "speso"),
+              e("span", { style: { width: 76, textAlign: "right" } }, "progr.")),
+            righe) : null,
+
+          e("div", { key: "d", style: { marginTop: 10 } },
+            RigaVoce(
+              e("span", null, "Deve ancora uscire",
+                e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 fisse \u20AC" + M.eur(sim.impegnato) + (sim.quote > 0.004 ? " + quote \u20AC" + M.eur(sim.quote) : ""))),
+              Cifra(-daAffrontare, { col: K.rosso })),
+            sim.tassa > 0.004 ? RigaVoce("Messo nel salvadanaio", Cifra(-sim.tassa, { col: K.verde })) : null,
+            sim.dist > 0.004 ? RigaVoce("Ripreso dal salvadanaio", Cifra(sim.dist, { col: K.verde, segno: true })) : null,
+            Math.abs(sim.rett) > 0.004 ? RigaVoce("Soldi liberati nel mese", Cifra(sim.rett, { col: sim.rett < 0 ? K.rosso : K.verde, segno: true })) : null,
+            RigaVoce(e("b", null, "Totale"), Cifra(totTeorico, { peso: 700 }), { ultima: true })),
+
+          /* i due numeri, uno accanto all'altro */
+          e("div", { key: "e", style: { marginTop: 12, display: "flex", gap: 8 } },
+            e("div", { style: { flex: 1, padding: "11px 10px", background: K.carta, borderRadius: 3, textAlign: "center" } },
+              e("div", { style: { fontFamily: SANS, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: K.tenue } }, "calcolo teorico"),
+              e("div", { style: { fontFamily: MONO, fontSize: 21, fontWeight: 700, marginTop: 3 } }, "\u20AC" + M.eur(alGiornoTeorico)),
+              e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 2 } }, "dal registro")),
+            e("div", { style: { flex: 1, padding: "11px 10px", background: K.carta, borderRadius: 3, textAlign: "center", border: "1px solid " + K.riga } },
+              e("div", { style: { fontFamily: SANS, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: K.tenue } }, "calcolo reale"),
+              e("div", { style: { fontFamily: MONO, fontSize: 21, fontWeight: 700, marginTop: 3, color: K.verde } }, "\u20AC" + M.eur(alGiornoReale)),
+              e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue, marginTop: 2 } }, "dall'estratto conto"))),
+
+          e("div", { key: "f", style: { marginTop: 9, fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: K.tenue } },
+            Math.abs(scarto) < 0.02
+              ? "I due conti coincidono: il registro racconta esattamente quello che dice la banca."
+              : e("span", null,
+                  "La banca dice ",
+                  e("b", { style: { color: scarto < 0 ? K.rosso : K.blu } }, "\u20AC" + M.eur(Math.abs(scarto)) + " al giorno " + (scarto < 0 ? "in meno" : "in pi\u00f9")),
+                  " di quanto dice il registro: in tutto \u20AC" + M.eur(Math.abs(M.c2(scarto * gg))) + " su " + gg + " giorni. ",
+                  scarto < 0
+                    ? "Sono soldi che il registro d\u00e0 per esistenti e in banca non ci sono."
+                    : "Sono soldi in banca che il registro non sa di avere."))
+        ], { accento: Math.abs(scarto) < 0.02 ? K.verde : K.ottone });
+      })(),
 
       /* --- salvadanaio --- */
       Scheda([
@@ -2179,6 +2296,90 @@ function App() {
                 e("div", { style: { width: p + "%", height: "100%", background: i === 0 ? K.inchiostro : K.tenue, borderRadius: 2 } })));
           }))
       ]) : null,
+      /* ════════════════════════════════════════════════════════
+         BLOCCO FILTRO-PERIODO
+         Da una data all'altra: quanto e' uscito davvero, in quanti
+         movimenti, in quali categorie e a che ritmo al giorno.
+         Guarda tutto il registro, non solo il ciclo in corso.
+         ════════════════════════════════════════════════════════ */
+      (function () {
+        var oggiIso = M.iso(oggi);
+        var da = pDa || M.iso(st.ciclo ? st.ciclo.ini : oggi);
+        var a = pA || oggiIso;
+        var tDa = M.ts(da), tA = M.ts(a);
+        var invertito = tDa > tA;
+        var voci = [], tot = 0, perCat = {};
+        if (!invertito) {
+          store.ev.forEach(function (ee) {
+            if (ee.t !== "spesa" && ee.t !== "fissa") return;
+            var t = M.ts(ee.d);
+            if (t < tDa || t > tA) return;
+            voci.push(ee);
+            tot = M.c2(tot + ee.imp);
+            var f = null;
+            store.fisse.forEach(function (y) { if (y.id === ee.fissaId) f = y; });
+            var k = ee.t === "fissa" || ee.fissaId ? (f ? f.nome : "Spese fisse") : (ee.cat || "Altro");
+            perCat[k] = M.c2((perCat[k] || 0) + ee.imp);
+          });
+        }
+        var gg = Math.max(1, M.giorniTra(tDa, tA) + 1);
+        var classifica = Object.keys(perCat).map(function (k) { return { n: k, v: perCat[k] }; })
+          .sort(function (x, y) { return y.v - x.v; }).slice(0, 8);
+        var maxV = classifica.length ? classifica[0].v : 1;
+
+        return Scheda([
+          Etichetta("Quanto ho speso da... a..."),
+          e("div", { key: "a", style: { display: "flex", gap: 8, marginTop: 8, alignItems: "flex-end" } },
+            e("div", { style: { flex: 1 } },
+              e("div", { style: { fontFamily: SANS, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: K.tenue, marginBottom: 3 } }, "dal"),
+              Campo({ type: "date", value: da, onChange: function (ev) { setPDa(ev.target.value); } })),
+            e("div", { style: { flex: 1 } },
+              e("div", { style: { fontFamily: SANS, fontSize: 10, letterSpacing: 1, textTransform: "uppercase", color: K.tenue, marginBottom: 3 } }, "al"),
+              Campo({ type: "date", value: a, onChange: function (ev) { setPA(ev.target.value); } }))),
+
+          e("div", { key: "b", style: { display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" } },
+            [["Questo ciclo", st.ciclo ? M.iso(st.ciclo.ini) : oggiIso, oggiIso],
+             ["Ultimi 7 giorni", M.iso(M.piuGiorni(oggi, -6)), oggiIso],
+             ["Ultimi 30 giorni", M.iso(M.piuGiorni(oggi, -29)), oggiIso],
+             ["Tutto", M.iso(M.piuGiorni(oggi, -3650)), oggiIso]].map(function (p) {
+              var attivo = da === p[1] && a === p[2];
+              return e("button", {
+                key: p[0], onClick: function () { setPDa(p[1]); setPA(p[2]); },
+                style: {
+                  padding: "6px 10px", borderRadius: 999, cursor: "pointer",
+                  border: "1px solid " + (attivo ? K.inchiostro : K.riga),
+                  background: attivo ? K.inchiostro : "transparent",
+                  color: attivo ? "#fff" : K.tenue, fontFamily: SANS, fontSize: 11.5, fontWeight: 600
+                }
+              }, p[0]);
+            })),
+
+          invertito
+            ? e("div", { key: "c", style: { marginTop: 12, padding: "10px 12px", background: K.rossoL, borderRadius: 3, fontFamily: SANS, fontSize: 12.5 } },
+                "La data di partenza \u00e8 dopo quella di arrivo.")
+            : e("div", { key: "c", style: { marginTop: 12 } },
+                e("div", { style: { textAlign: "center", padding: "12px 0 10px" } },
+                  e("div", { style: { fontFamily: MONO, fontSize: 32, fontWeight: 700, letterSpacing: -1 } }, "\u20AC" + M.eur(tot)),
+                  e("div", { style: { fontFamily: SANS, fontSize: 12, color: K.tenue, marginTop: 3 } },
+                    voci.length + (voci.length === 1 ? " movimento" : " movimenti") + " in " + gg + (gg === 1 ? " giorno" : " giorni") +
+                    " \u00b7 \u20AC" + M.eur(M.c2(tot / gg)) + " al giorno")),
+                classifica.length ? e("div", { style: { marginTop: 4 } },
+                  classifica.map(function (c, i) {
+                    var p = maxV > 0 ? (c.v / maxV * 100) : 0;
+                    return e("div", { key: c.n, style: { marginBottom: 8 } },
+                      e("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", fontFamily: SANS, fontSize: 12.5 } },
+                        e("span", null, c.n),
+                        e("span", null, Cifra(c.v, { size: 12.5 }),
+                          e("span", { style: { fontFamily: SANS, fontSize: 11, color: K.tenue, marginLeft: 7 } },
+                            (tot > 0 ? Math.round(c.v / tot * 100) : 0) + "%"))),
+                      e("div", { style: { height: 4, background: K.riga, borderRadius: 2, marginTop: 3 } },
+                        e("div", { style: { width: p + "%", height: "100%", background: i === 0 ? K.inchiostro : K.tenue, borderRadius: 2 } })));
+                  }))
+                  : e("div", { style: { fontFamily: SANS, fontSize: 13, color: K.tenue, textAlign: "center", paddingBottom: 6 } },
+                      "Nessuna spesa in questo periodo."))
+        ]);
+      })(),
+
       Scheda([
         Etichetta("Movimenti"),
         e("div", { key: "l", style: { marginTop: 6 } },
