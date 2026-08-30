@@ -1676,7 +1676,7 @@ function Nastro(sim, vista, oggi) {
 /* ============================================================
    APP
    ============================================================ */
-var VERSIONE = "3.4 \u00b7 ripulitura";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
+var VERSIONE = "3.5 \u00b7 in parole";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
 var CHIAVE = "budget-v2";
 /* ════════════════════════════════════════════════════════════
    BLOCCO BONIFICA
@@ -2049,6 +2049,83 @@ function App() {
           M.eur(Math.max(0, v.ritmo - sim.residuo / v.giorniAllaPaga)) + " in meno di quanto stai spendendo.") : null
       ], { accento: v.arrivi ? K.verde : K.rosso }),
 
+      /* ════════════════════════════════════════════════════════
+         BLOCCO IN-PAROLE
+         Cinque domande, cinque risposte, e da li' quanto resta.
+         Serve a leggere il mese senza dover interpretare nessuna
+         tabella: quando e' arrivato lo stipendio, quanto, cosa
+         c'era prima, cosa non si tocca, quando arriva il prossimo.
+         ════════════════════════════════════════════════════════ */
+      (function () {
+        var ini = sim.ciclo.ini;
+        var prima = M.saldoA(store, M.piuGiorni(ini, -1), []);
+        var nonToccare = M.c2(st.fc + st.accTot + st.salv + st.salvF);
+        var uscito = 0;
+        store.ev.forEach(function (ee) {
+          if (ee.t !== "spesa" && ee.t !== "fissa") return;
+          var t = M.ts(ee.d);
+          if (t >= ini && t <= oggi) uscito = M.c2(uscito + ee.imp);
+        });
+        sim.fisse.forEach(function (r) {
+          if (r.autoUscita && r.scad != null && r.scad >= ini && r.scad <= oggi) uscito = M.c2(uscito + r.f.prev);
+        });
+        var prossima = store.imp.prevista ? M.ts(store.imp.prevista) : M.piuGiorni(sim.ciclo.fin, 1);
+        var mancano = Math.max(0, M.giorniTra(oggi, prossima));
+        var gg = Math.max(1, g.rimasti);
+
+        function D(dom, ris, nota) {
+          return e("div", { key: dom, style: { padding: "9px 0", borderBottom: "1px solid " + K.riga } },
+            e("div", { style: { fontFamily: SANS, fontSize: 12, color: K.tenue } }, dom),
+            e("div", { style: { fontFamily: SANS, fontSize: 14.5, fontWeight: 600, marginTop: 2 } }, ris),
+            nota ? e("div", { style: { fontFamily: SANS, fontSize: 11.5, color: K.tenue, marginTop: 1 } }, nota) : null);
+        }
+
+        return Scheda([
+          Etichetta("In parole semplici"),
+          e("div", { key: "d", style: { marginTop: 4 } },
+            D("Quando \u00e8 arrivato lo stipendio?",
+              M.lblGiorno(ini) + " " + M.lbl(ini),
+              "\u00e8 il giorno " + (g.idx + 1) + " di " + sim.giorniTot + " del ciclo"),
+            D("Quanto \u00e8 arrivato?", "\u20AC" + M.eur(sim.ciclo.stip)),
+            D("Quanto c'era gi\u00e0 sul conto prima?",
+              prima.certo ? "\u20AC" + M.eur(prima.saldo) : "non lo so ancora",
+              prima.certo
+                ? "letto dall'estratto conto del " + M.lbl(M.ts(prima.L.d))
+                : "registra un estratto conto e questa riga si riempie"),
+            D("Quanto non puoi toccare?", "\u20AC" + M.eur(nonToccare),
+              "fondo cassa \u20AC" + M.eur(st.fc) + " + soldi fantasma \u20AC" + M.eur(M.c2(st.accTot + st.salv + st.salvF))),
+            D("Quando arriva il prossimo?",
+              M.lblGiorno(prossima) + " " + M.lbl(prossima),
+              mancano === 0 ? "oggi" : "fra " + mancano + (mancano === 1 ? " giorno" : " giorni"))),
+
+          /* Si parte dal saldo in banca, quindi le uscite gia' fatte NON si
+             sottraggono: sono gia' dentro quel saldo. E le quote non si
+             sottraggono qui perche' stanno gia' dentro i soldi fantasma.
+             Queste quattro righe chiudono esattamente sul risultato. */
+          e("div", { key: "e", style: { marginTop: 12, padding: "12px 13px", background: K.carta, borderRadius: 3 } },
+            Etichetta("Quindi, per arrivare alla prossima paga"),
+            e("div", { style: { marginTop: 7 } },
+              RigaVoce("Hai in banca adesso", Cifra(st.attesoBanca)),
+              RigaVoce(e("span", null, "Non toccare",
+                e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 fondo cassa e soldi fantasma")),
+                Cifra(-nonToccare, { col: K.ottone })),
+              RigaVoce(e("span", null, "Fisse ancora da pagare",
+                e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 devono ancora uscire")),
+                Cifra(-sim.impegnato, { col: K.rosso })),
+              RigaVoce(e("b", null, "Ti restano"), Cifra(sim.residuo, { peso: 700 }), { ultima: true })),
+            e("div", { style: { marginTop: 10, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700 } },
+              "\u20AC" + M.eur0(sim.residuo) + " \u00F7 " + gg + (gg === 1 ? " giorno = " : " giorni = "),
+              e("span", { style: { fontSize: 19 } }, "\u20AC" + M.eur(M.c2(sim.residuo / gg)) + " al giorno")),
+            e("div", { style: { marginTop: 8, fontFamily: SANS, fontSize: 11.5, color: K.tenue, lineHeight: 1.55 } },
+              "In questo ciclo sono gi\u00e0 usciti \u20AC" + M.eur(uscito) + ", ma non li trovi sottratti qui sopra: erano gi\u00e0 fuori dal conto quando la banca ti ha dato quel saldo. Sottrarli di nuovo li conterebbe due volte."),
+            (function () {
+              var chiude = M.c2(st.attesoBanca - nonToccare - sim.impegnato - sim.residuo);
+              return Math.abs(chiude) > 0.02 ? e("div", { style: { marginTop: 8, padding: "8px 10px", background: K.rossoL, borderRadius: 3, fontFamily: SANS, fontSize: 12 } },
+                "Queste righe non chiudono: mancano \u20AC" + M.eur(chiude) + ". Segnalamelo.") : null;
+            })())
+        ], { accento: K.inchiostro });
+      })(),
+
       /* --- come nasce --- */
       Scheda([
         Etichetta("Come nasce il budget di oggi"),
@@ -2280,7 +2357,10 @@ function App() {
      SCHERMATA: SPESE
      ============================================================ */
   function vistaSpese() {
-    var spese = store.ev.filter(function (x) { return x.t === "spesa" || x.t === "fissa"; })
+    /* Anche le entrate stanno qui. Prima esistevano nel registro ma non si
+       vedevano da nessuna parte: entravano nei conti e non c'era modo di
+       guardarle, correggerle o cancellarle. */
+    var spese = store.ev.filter(function (x) { return x.t === "spesa" || x.t === "fissa" || x.t === "entrata"; })
       .sort(function (a, b) { return M.ts(b.d) - M.ts(a.d) || b.ts - a.ts; }).slice(0, 120);
     var perGiorno = {}, ordine = [];
     spese.forEach(function (x) { if (!perGiorno[x.d]) { perGiorno[x.d] = []; ordine.push(x.d); } perGiorno[x.d].push(x); });
@@ -2403,7 +2483,7 @@ function App() {
           ordine.length === 0 ? e("div", { style: { fontFamily: SANS, fontSize: 13, color: K.tenue, padding: "10px 0" } }, "Ancora nessun movimento. Il primo lo registri col pulsante qui sopra.") :
             ordine.map(function (d) {
               var lista = perGiorno[d];
-              var tot = lista.reduce(function (a, x) { return a + x.imp; }, 0);
+              var tot = lista.reduce(function (a, x) { return a + (x.t === "entrata" ? -x.imp : x.imp); }, 0);
               return e("div", { key: d, style: { marginBottom: 12 } },
                 e("div", { style: { display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "2px solid " + K.inchiostro, marginBottom: 2 } },
                   e("span", { style: { fontFamily: SERIF, fontSize: 13, fontWeight: 700 } }, M.lblGiorno(M.ts(d)) + " " + M.lbl(M.ts(d))),
@@ -2412,7 +2492,8 @@ function App() {
                   var f = null;
                   store.fisse.forEach(function (y) { if (y.id === x.fissaId) f = y; });
                   var ora = x.ts ? new Date(x.ts).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : "";
-                  var etichetta = x.t === "fissa" ? ((f ? f.icona + " " + f.nome : "Voce fissa") + " \u00b7 bolletta chiusa")
+                  var etichetta = x.t === "entrata" ? ("\u2795 " + (x.nota || "Entrata"))
+                    : x.t === "fissa" ? ((f ? f.icona + " " + f.nome : "Voce fissa") + " \u00b7 bolletta chiusa")
                     : (f ? (f.icona + " " + f.nome) : ((catIcona(x.cat) + " ") + (x.nota || x.cat || "Spesa")));
                   var fonte = x.fonte === "salv" ? "dal salvadanaio" : (x.fonte && x.fonte.indexOf("busta:") === 0 ? "da una busta" : "");
                   return e("div", { key: x.id, style: { display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid " + K.riga } },
@@ -2420,7 +2501,8 @@ function App() {
                       e("div", { style: { fontFamily: SANS, fontSize: 13 } }, etichetta),
                       e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue } },
                         (ora ? ora : "") + (fonte ? " \u00b7 " + fonte : "") + (x.nota && f ? " \u00b7 " + x.nota : "") + (x.chi ? " \u00b7 " + x.chi : ""))),
-                    Cifra(x.imp, { size: 13, col: x.fonte === "salv" ? K.verde : K.inchiostro }),
+                    Cifra(x.t === "entrata" ? x.imp : x.imp, { size: 13, segno: x.t === "entrata",
+                      col: x.t === "entrata" ? K.verde : (x.fonte === "salv" ? K.verde : K.inchiostro) }),
                     e("button", {
                       onClick: function () {
                         chiedi({
