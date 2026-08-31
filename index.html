@@ -1676,7 +1676,7 @@ function Nastro(sim, vista, oggi) {
 /* ============================================================
    APP
    ============================================================ */
-var VERSIONE = "3.5 \u00b7 in parole";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
+var VERSIONE = "3.6 \u00b7 solo stipendio";   // cambia a ogni consegna: serve a sapere cosa sta girando davvero
 var CHIAVE = "budget-v2";
 /* ════════════════════════════════════════════════════════════
    BLOCCO BONIFICA
@@ -2071,7 +2071,11 @@ function App() {
         });
         var prossima = store.imp.prevista ? M.ts(store.imp.prevista) : M.piuGiorni(sim.ciclo.fin, 1);
         var mancano = Math.max(0, M.giorniTra(oggi, prossima));
-        var gg = Math.max(1, g.rimasti);
+        /* La domanda e' "come arrivo alla prossima paga", quindi si divide per i
+           giorni che mancano a quella data, non per quelli che restano del ciclo
+           teorico. Se la paga slitta, il budget del giorno deve stringersi da solo. */
+        var ggCiclo = Math.max(1, g.rimasti);
+        var gg = Math.max(1, mancano || ggCiclo);
 
         function D(dom, ris, nota) {
           return e("div", { key: dom, style: { padding: "9px 0", borderBottom: "1px solid " + K.riga } },
@@ -2085,7 +2089,7 @@ function App() {
           e("div", { key: "d", style: { marginTop: 4 } },
             D("Quando \u00e8 arrivato lo stipendio?",
               M.lblGiorno(ini) + " " + M.lbl(ini),
-              "\u00e8 il giorno " + (g.idx + 1) + " di " + sim.giorniTot + " del ciclo"),
+              "oggi \u00e8 il " + (g.idx + 1) + "\u00b0 giorno da allora"),
             D("Quanto \u00e8 arrivato?", "\u20AC" + M.eur(sim.ciclo.stip)),
             D("Quanto c'era gi\u00e0 sul conto prima?",
               prima.certo ? "\u20AC" + M.eur(prima.saldo) : "non lo so ancora",
@@ -2118,11 +2122,45 @@ function App() {
               e("span", { style: { fontSize: 19 } }, "\u20AC" + M.eur(M.c2(sim.residuo / gg)) + " al giorno")),
             e("div", { style: { marginTop: 8, fontFamily: SANS, fontSize: 11.5, color: K.tenue, lineHeight: 1.55 } },
               "In questo ciclo sono gi\u00e0 usciti \u20AC" + M.eur(uscito) + ", ma non li trovi sottratti qui sopra: erano gi\u00e0 fuori dal conto quando la banca ti ha dato quel saldo. Sottrarli di nuovo li conterebbe due volte."),
+            gg !== ggCiclo ? e("div", { style: { marginTop: 8, padding: "8px 10px", background: "transparent", borderRadius: 3, fontFamily: SANS, fontSize: 11.5, lineHeight: 1.55, color: K.tenue, border: "1px solid " + K.riga } },
+              "Il ciclo teorico finirebbe fra " + ggCiclo + (ggCiclo === 1 ? " giorno" : " giorni") +
+              ", ma tu la paga la aspetti fra " + gg + ". Divido per " + gg + ": se dividessi per " + ggCiclo +
+              " ti direi \u20AC" + M.eur(M.c2(sim.residuo / ggCiclo)) + " al giorno e resteresti scoperto alla fine.") : null,
             (function () {
               var chiude = M.c2(st.attesoBanca - nonToccare - sim.impegnato - sim.residuo);
               return Math.abs(chiude) > 0.02 ? e("div", { style: { marginTop: 8, padding: "8px 10px", background: K.rossoL, borderRadius: 3, fontFamily: SANS, fontSize: 12 } },
                 "Queste righe non chiudono: mancano \u20AC" + M.eur(chiude) + ". Segnalamelo.") : null;
-            })())
+            })()),
+
+          /* ── lo stesso ragionamento guardando solo lo stipendio ──
+             Niente banca, niente fondo cassa, niente soldi fantasma:
+             quello che e' arrivato, meno quello che e' uscito, meno
+             quello che deve ancora uscire. Tre righe e basta. */
+          (function () {
+            var daFare = M.c2(sim.impegnato + sim.quote);
+            var restaStip = M.c2(sim.ciclo.stip - uscito - daFare);
+            var alGg = M.c2(restaStip / gg);
+            var distanza = M.c2(sim.residuo - restaStip);
+            return e("div", { key: "f", style: { marginTop: 10, padding: "12px 13px", background: K.carta, borderRadius: 3, borderLeft: "3px solid " + K.ottone } },
+              Etichetta("Guardando solo lo stipendio"),
+              e("div", { style: { marginTop: 7 } },
+                RigaVoce("Stipendio del " + M.lbl(ini), Cifra(sim.ciclo.stip)),
+                RigaVoce(e("span", null, "Spese gi\u00e0 fatte",
+                  e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 quotidiane e fisse gi\u00e0 uscite")),
+                  Cifra(-uscito, { col: K.rosso })),
+                RigaVoce(e("span", null, "Spese ancora da fare",
+                  e("span", { style: { color: K.tenue, fontSize: 11 } }, " \u00b7 fisse \u20AC" + M.eur(sim.impegnato) + (sim.quote > 0.004 ? " + quote \u20AC" + M.eur(sim.quote) : ""))),
+                  Cifra(-daFare, { col: K.rosso })),
+                RigaVoce(e("b", null, "Resta dello stipendio"), Cifra(restaStip, { peso: 700 }), { ultima: true })),
+              e("div", { style: { marginTop: 10, textAlign: "center", fontFamily: MONO, fontSize: 15, fontWeight: 700, color: restaStip < 0 ? K.rosso : K.inchiostro } },
+                "\u20AC" + M.eur0(restaStip) + " \u00F7 " + gg + (gg === 1 ? " giorno = " : " giorni = "),
+                e("span", { style: { fontSize: 19 } }, "\u20AC" + M.eur(alGg) + " al giorno")),
+              Math.abs(distanza) > 0.02 ? e("div", { style: { marginTop: 8, fontFamily: SANS, fontSize: 11.5, color: K.tenue, lineHeight: 1.55 } },
+                "Guardando la banca invece risultano \u20AC" + M.eur(sim.residuo) + ": ",
+                e("b", { style: { color: distanza < 0 ? K.rosso : K.blu } }, "\u20AC" + M.eur(Math.abs(distanza)) + (distanza < 0 ? " in meno" : " in pi\u00f9")),
+                ". La differenza sono i soldi che avevi gi\u00e0 messi da parte prima di questa paga e le letture che non hanno mai quadrato."
+              ) : null);
+          })()
         ], { accento: K.inchiostro });
       })(),
 
