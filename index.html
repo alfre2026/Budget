@@ -464,12 +464,33 @@ var M = (function () {
     }
     return { buone: buone, scartate: scartate };
   }
-  function cicli(store) {
+  /* Un ciclo finisce quando arriva la paga successiva, non a calendario.
+     L'ultimo ciclo resta APERTO: se lo stipendio tarda, l'app continua a
+     funzionare invece di sbattere contro un muro. La data prevista (o i 31
+     giorni) serve solo come riferimento per dividere il budget. */
+  function cicli(store, oggi) {
+    oggi = oggi || oggiTs();
     var paghe = pagheDoppie(store).buone, dur = store.imp.durata || 31, out = [];
     for (var i = 0; i < paghe.length; i++) {
       var ini = ts(paghe[i].d);
-      var fin = (i + 1 < paghe.length) ? piuGiorni(ts(paghe[i + 1].d), -1) : piuGiorni(ini, dur - 1);
-      out.push({ n: i + 1, ini: ini, fin: fin, stip: paghe[i].imp, evId: paghe[i].id });
+      var ultimo = (i + 1 >= paghe.length);
+      var c = { n: i + 1, ini: ini, stip: paghe[i].imp, evId: paghe[i].id, aperto: false, ritardo: 0 };
+      if (!ultimo) {
+        c.fin = piuGiorni(ts(paghe[i + 1].d), -1);
+        c.finRif = c.fin;
+      } else {
+        // riferimento: la data che prevedi, altrimenti la durata standard
+        var rif = piuGiorni(ini, dur - 1);
+        if (store.imp.prevista) {
+          var p = piuGiorni(ts(store.imp.prevista), -1);
+          if (p > ini) rif = p;
+        }
+        c.finRif = rif;
+        c.aperto = true;
+        c.ritardo = Math.max(0, giorniTra(rif, oggi));
+        c.fin = Math.max(rif, oggi);      // finche' la paga non arriva, il ciclo contiene oggi
+      }
+      out.push(c);
     }
     return out;
   }
@@ -609,7 +630,7 @@ var M = (function () {
      ============================================================ */
   function stato(store, oggi) {
     oggi = oggi || oggiTs();
-    var lista = cicli(store);
+    var lista = cicli(store, oggi);
     var piano = pianoQuote(store, lista, oggi);
 
     /* --- fondo cassa: ultimo valore dichiarato --- */
@@ -655,9 +676,9 @@ var M = (function () {
        banca = fondo cassa + buste + risparmio + fisse da pagare + netto     */
     var banca = c2(fc + accTot + ris + R.daPagare + R.netto);
 
-    var giorniTot = giorniTra(corrente.ini, corrente.fin) + 1;
-    var giorniFatti = Math.min(giorniTot, giorniTra(corrente.ini, oggi) + 1);
-    var giorniRestano = Math.max(1, giorniTra(oggi, corrente.fin) + 1);
+    var giorniTot = giorniTra(corrente.ini, corrente.finRif) + 1;
+    var giorniFatti = giorniTra(corrente.ini, oggi) + 1;
+    var giorniRestano = Math.max(1, giorniTra(oggi, corrente.finRif) + 1);
     var giorniAttesa = giorniRestano;
     if (store.imp.prevista) {
       var gp = giorniTra(oggi, ts(store.imp.prevista));
@@ -673,6 +694,7 @@ var M = (function () {
       usciteReali: R.usciteReali, risparmioFisse: R.risparmioFisse,
       banca: banca,
       giorniTot: giorniTot, giorniFatti: giorniFatti, giorniRestano: giorniRestano, giorniAttesa: giorniAttesa,
+      ritardo: corrente.ritardo || 0, aperto: !!corrente.aperto, finRif: corrente.finRif,
       alGiorno: c2(R.netto / giorniRestano),
       alGiornoAttesa: c2(R.netto / giorniAttesa),
       ritmo: giorniFatti > 0 ? c2(R.impegnato / giorniFatti) : 0,
@@ -1120,29 +1142,14 @@ function App() {
   }
 
   /* ============================================================
-     CICLO FINITO
+     NESSUNA PAGA REGISTRATA
      ============================================================ */
   if (!st.ciclo) {
-    var ult = st.chiusi.length ? st.chiusi[st.chiusi.length - 1] : null;
     return e("div", { style: { fontFamily: SANS, color: K.inchiostro, padding: "26px 0" } },
-      e("div", { style: { fontFamily: SERIF, fontSize: 26, marginBottom: 6 } }, "Il ciclo \u00e8 finito"),
-      ult ? Card([
-        Eti("Com'\u00e8 andata"),
-        Riga("Stipendio", Cifra(ult.ciclo.stip), { key: "a" }),
-        Riga("Fisse e buste", Cifra(-(ult.fisseTot + ult.quote), { col: K.rosso }), { key: "b", sopra: true }),
-        Riga("Speso per vivere", Cifra(-ult.speso, { col: K.rosso }), { key: "c", sopra: true }),
-        Riga(e("b", null, "Avanzato"), Cifra(ult.netto, { peso: 700, col: ult.netto >= 0 ? K.verde : K.rosso }), { key: "d", sopra: true })
-      ], { acc: ult.netto >= 0 ? K.verde : K.rosso }) : null,
-      Btn("\u00c8 arrivato lo stipendio", function () {
-        chiedi({
-          tit: "Registra la paga", msg: "Quanto \u00e8 arrivato oggi?", input: "numero",
-          valore: String(store.imp.stip), ok: "Registra",
-          onOk: function (v) {
-            var n = parseFloat(String(v).replace(",", ".")) || 0;
-            if (n > 0) agisci(function (c) { M.registraPaga(c, n, M.iso(oggi)); });
-          }
-        });
-      }),
+      e("div", { style: { fontFamily: SERIF, fontSize: 26, marginBottom: 6 } }, "Manca la prima paga"),
+      e("div", { style: { fontSize: 13.5, color: K.tenue, lineHeight: 1.65, marginBottom: 16 } },
+        "Registra lo stipendio con la data in cui \u00e8 arrivato: da li' parte tutto."),
+      Btn("Registra lo stipendio", function () { registraPaga(); }),
       modale ? Modale(modale, setModale) : null);
   }
 
@@ -1152,14 +1159,27 @@ function App() {
   function vistaOggi() {
     var oggiDisp = M.c2(st.alGiorno - st.spesoOggi);
     var col = st.netto < 0 ? K.rosso : (oggiDisp < 0 ? K.ottone : K.verde);
+    var tarda = st.ritardo > 0;
     return e("div", null,
+      /* --- la paga tarda: l'app continua a funzionare e te lo dice --- */
+      tarda ? Card([
+        e("div", { key: "t", style: { fontFamily: SANS, fontSize: 13, lineHeight: 1.6 } },
+          e("b", null, "La paga tarda di " + st.ritardo + (st.ritardo === 1 ? " giorno" : " giorni") + "."),
+          " Era attesa il " + M.lblLungo(st.finRif) + ". Finch\u00e9 non arriva, quello che resta deve bastare: te lo mostro come cifra intera, non al giorno."),
+        e("div", { key: "b", style: { display: "flex", gap: 7, marginTop: 10 } },
+          Btn("\u00c8 arrivata", function () { registraPaga(); }, { size: 12.5, pad: "9px 12px", auto: true }),
+          Btn("Arriva il\u2026", function () { spostaPrevista(); }, { vuoto: true, col: K.blu, size: 12.5, pad: "9px 12px", auto: true }))
+      ], { acc: K.ottone }) : null,
+
       Card([
-        Eti("Oggi puoi ancora spendere"),
-        e("div", { key: "n", style: { marginTop: 2 } }, Numerone(oggiDisp, col)),
+        Eti(tarda ? "Ti resta in tutto" : "Oggi puoi ancora spendere"),
+        e("div", { key: "n", style: { marginTop: 2 } }, Numerone(tarda ? M.c2(st.netto - st.spesoOggi) : oggiDisp, col)),
         e("div", { key: "s", style: { fontFamily: SANS, fontSize: 12.5, color: K.tenue, marginTop: 4 } },
-          st.spesoOggi > 0.004 ? ("su \u20AC" + M.eur(st.alGiorno) + " di oggi \u00b7 gi\u00e0 spesi \u20AC" + M.eur(st.spesoOggi))
-            : ("\u20AC" + M.eur(st.alGiorno) + " al giorno per i " + st.giorniRestano + " giorni che restano")),
-        st.giorniAttesa !== st.giorniRestano ? e("div", { key: "p", style: { fontFamily: SANS, fontSize: 11.5, color: K.blu, marginTop: 2 } },
+          tarda
+            ? ("dimmi quando arriva la paga e torno a dirti quanto al giorno" + (st.spesoOggi > 0.004 ? (" \u00b7 oggi hai gi\u00e0 speso \u20AC" + M.eur(st.spesoOggi)) : ""))
+            : (st.spesoOggi > 0.004 ? ("su \u20AC" + M.eur(st.alGiorno) + " di oggi \u00b7 gi\u00e0 spesi \u20AC" + M.eur(st.spesoOggi))
+              : ("\u20AC" + M.eur(st.alGiorno) + " al giorno per i " + st.giorniRestano + " giorni che restano"))),
+        (!tarda && st.giorniAttesa !== st.giorniRestano) ? e("div", { key: "p", style: { fontFamily: SANS, fontSize: 11.5, color: K.blu, marginTop: 2 } },
           "\u20AC" + M.eur(st.alGiornoAttesa) + " se la paga arriva il " + M.lbl(M.ts(store.imp.prevista))) : null
       ], { acc: col }),
 
@@ -1682,15 +1702,7 @@ function App() {
               onChange: function (x) { var v = x.target.value; agisci(function (c) { c.imp.prevista = v || null; }); }
             }))),
         e("div", { key: "p" },
-          Btn("\u00c8 arrivato lo stipendio", function () {
-            chiedi({
-              tit: "Registra la paga", msg: "Quanto \u00e8 arrivato?", input: "numero", valore: String(store.imp.stip), ok: "Registra",
-              onOk: function (v) {
-                var n = parseFloat(String(v).replace(",", "."));
-                if (n > 0) agisci(function (c) { M.registraPaga(c, n, M.iso(oggi)); });
-              }
-            });
-          }, { size: 13 }))
+          Btn("\u00c8 arrivato lo stipendio", function () { registraPaga(); }, { size: 13 }))
       ]),
 
       e("div", { style: { margin: "16px 0 6px" } }, Eti("Voci di spesa")),
@@ -1799,6 +1811,44 @@ function App() {
         e("b", null, "Dati importati dalla versione precedente."),
         " Le vecchie rettifiche sono diventate spese non segnate o entrate. La versione di prima resta intatta.")], { acc: K.blu }) : null
     );
+  }
+
+  /* La paga la decidi tu: puo' arrivare prima o dopo. Chiedo sempre la data. */
+  function registraPaga() {
+    chiedi({
+      tit: "\u00c8 arrivato lo stipendio", msg: "Quanto \u00e8 arrivato?", input: "numero",
+      valore: String(store.imp.stip || ""), ok: "Avanti",
+      onOk: function (v) {
+        var n = parseFloat(String(v).replace(",", "."));
+        if (!(n > 0)) return;
+        chiedi({
+          tit: "In che giorno?", msg: "Se \u00e8 arrivato ieri o l'altro ieri, scrivilo: il ciclo parte da quel giorno.",
+          input: "data", valore: M.iso(oggi), ok: "Registra",
+          onOk: function (d) {
+            var t = M.ts(d);
+            if (!t) return;
+            agisci(function (c) {
+              M.registraPaga(c, n, d);
+              c.imp.stip = n;
+              c.imp.gPaga = new Date(t).getDate();
+              c.imp.prevista = null;          // la vecchia previsione non serve piu'
+            });
+          }
+        });
+      }
+    });
+  }
+
+  function spostaPrevista() {
+    chiedi({
+      tit: "Quando prevedi la paga?",
+      msg: "Serve solo a dividere il budget sui giorni giusti. Puoi cambiarla quando vuoi.",
+      input: "data", valore: store.imp.prevista || M.iso(M.piuGiorni(oggi, 3)), ok: "Salva",
+      onOk: function (d) {
+        if (!M.ts(d)) return;
+        agisci(function (c) { c.imp.prevista = d; });
+      }
+    });
   }
 
   /* ---------- finestrelle di modifica ---------- */
@@ -1961,8 +2011,10 @@ function App() {
         e("div", { style: { fontFamily: SERIF, fontSize: 21 } }, "Registro di casa"),
         e("div", { style: { fontFamily: SANS, fontSize: 10.5, color: K.tenue } }, M.lblGiorno(oggi) + " " + M.lbl(oggi))),
       e("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 4, fontFamily: SANS, fontSize: 11, color: K.tenue } },
-        e("span", null, "ciclo " + M.lbl(st.ciclo.ini) + " \u2192 " + M.lbl(st.ciclo.fin)),
-        e("span", null, "giorno " + st.giorniFatti + " di " + st.giorniTot + " \u00b7 ne restano " + st.giorniRestano))),
+        e("span", null, "ciclo " + M.lbl(st.ciclo.ini) + " \u2192 " + (st.ritardo > 0 ? "?" : M.lbl(st.finRif))),
+        e("span", null, st.ritardo > 0
+          ? ("giorno " + st.giorniFatti + " \u00b7 paga in ritardo di " + st.ritardo)
+          : ("giorno " + st.giorniFatti + " di " + st.giorniTot + " \u00b7 ne restano " + st.giorniRestano)))),
 
     e("div", { key: "scheda-" + tab }, schede[tab]()),
 
@@ -2011,8 +2063,10 @@ function ModaleInterna(props) {
         })) : null,
       m.input ? e("div", { style: { marginBottom: 12 } },
         Campo({
-          type: m.input === "numero" ? "number" : "text", inputMode: m.input === "numero" ? "decimal" : undefined,
-          mono: m.input === "numero", autoFocus: true, value: val, onChange: function (x) { setVal(x.target.value); }
+          type: m.input === "numero" ? "number" : (m.input === "data" ? "date" : "text"),
+          inputMode: m.input === "numero" ? "decimal" : undefined,
+          mono: m.input === "numero", autoFocus: m.input !== "data", value: val,
+          onChange: function (x) { setVal(x.target.value); }
         })) : null,
       (m.extra || []).map(function (x, i) {
         return e("div", { key: i, style: { marginBottom: 7 } },
