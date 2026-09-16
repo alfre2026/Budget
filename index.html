@@ -515,6 +515,11 @@ html, body {
 .ct-col.forte { font-weight: 650; }
 .ciclo-riep { font-size: 12px; color: var(--tenue); border-top: 1px solid var(--linea); margin-top: 7px; padding-top: 7px; }
 
+.usa { background: var(--carta); padding: 12px; margin-top: 10px; border-left: 3px solid var(--verde); }
+.usa-alto { display: flex; gap: 10px; align-items: center; }
+.usa .ins-num { flex: 1; }
+.mov-busta { color: var(--verde); }
+
 </style>
 </head>
 <body>
@@ -1028,6 +1033,14 @@ var CALC = (function () {
       var vers = versamentoDelCiclo(stato.registro, b.id, inizio, fine);
 
       stato.registro.forEach(function (m) {
+        /* Una spesa pagata con questa busta la svuota come un pagamento:
+           i soldi escono dalla banca e dalla busta insieme, quindi il
+           budget giornaliero non ne risente. */
+        if (m.tipo === 'spesa' && m.dallaBusta === b.id) {
+          if (m.data >= inizio && m.data < fine) uscitoOra += m.importo;
+          else if (m.data < inizio) prima -= m.importo;
+          return;
+        }
         if (m.busta !== b.id) return;
         var nel = m.data >= inizio && m.data < fine;
         if (m.tipo === 'versamentoBusta') {
@@ -1159,9 +1172,14 @@ var CALC = (function () {
     var mov = dopo(stato.registro, a.saldoBanca.da);
 
     var saldo = a.saldoBanca.valore;
-    var spQuot = 0, spFisse = 0, pagBuste = 0, incassi = 0;
+    var spQuot = 0, spFisse = 0, pagBuste = 0, incassi = 0, spDaBuste = 0;
     mov.forEach(function (m) {
-      if (m.tipo === 'spesa') { saldo -= m.importo; if (m.fissaId) spFisse += m.importo; else spQuot += m.importo; }
+      if (m.tipo === 'spesa') {
+        saldo -= m.importo;
+        if (m.dallaBusta) spDaBuste += m.importo;
+        else if (m.fissaId) spFisse += m.importo;
+        else spQuot += m.importo;
+      }
       if (m.tipo === 'pagoBusta') { saldo -= m.importo; pagBuste += m.importo; }
       if (m.tipo === 'paga') { saldo += m.importo; incassi += m.importo; }
     });
@@ -1228,7 +1246,8 @@ var CALC = (function () {
        a una, le fisse solo per la parte che sfora il previsto. */
     var quotCiclo = 0;
     mov.forEach(function (m) {
-      if (m.tipo === 'spesa' && !m.fissaId && m.data >= a.ultimaPaga.valore) quotCiclo += m.importo;
+      if (m.tipo === 'spesa' && !m.fissaId && !m.dallaBusta &&
+          m.data >= a.ultimaPaga.valore) quotCiclo += m.importo;
     });
     var sfori = 0;
     fisse.forEach(function (f) { sfori += f.sforo; });
@@ -1255,7 +1274,7 @@ var CALC = (function () {
     /* spesa quotidiana di oggi, per il budget di domani */
     var oggiSpeso = 0;
     stato.registro.forEach(function (m) {
-      if (m.tipo === 'spesa' && m.data === oggi) oggiSpeso += m.importo;
+      if (m.tipo === 'spesa' && m.data === oggi && !m.dallaBusta) oggiSpeso += m.importo;
     });
     oggiSpeso = r2(oggiSpeso);
     var budgetDomani = giorni > 1 ? (nettoSpendibile - oggiSpeso) / (giorni - 1) : null;
@@ -1267,7 +1286,7 @@ var CALC = (function () {
       ancora: a, oggi: oggi, cicli: elenco, ciclo: corrente,
       nomeCiclo: nomeCiclo(corrente),
       saldoDichiarato: a.saldoBanca.valore,
-      speseQuotidiane: r2(spQuot), speseFisse: r2(spFisse),
+      speseQuotidiane: r2(spQuot), speseFisse: r2(spFisse), speseDaBuste: r2(spDaBuste),
       pagamentiBuste: r2(pagBuste), pagheIncassate: r2(incassi),
       saldoPrevisto: r2(saldo), usciteImplicite: usciteImplicite,
       fondoCassa: a.fondoCassa.valore,
@@ -1309,19 +1328,25 @@ var CALC = (function () {
 
   function giornate(stato, a, oggi) {
     var f = finestra(a, oggi), mappa = {}, d = f.da, g = 0;
-    while (d <= oggi && g < 400) { mappa[d] = { data: d, quotidiane: 0, fisse: 0, voci: [] }; d = spostaGiorni(d, 1); g++; }
+    while (d <= oggi && g < 400) {
+      mappa[d] = { data: d, quotidiane: 0, fisse: 0, daBuste: 0, voci: [] };
+      d = spostaGiorni(d, 1); g++;
+    }
     dopo(stato.registro, a.saldoBanca.da).forEach(function (m) {
       if (m.tipo !== 'spesa' || !mappa[m.data]) return;
-      if (m.fissaId) mappa[m.data].fisse += m.importo; else mappa[m.data].quotidiane += m.importo;
+      if (m.dallaBusta) mappa[m.data].daBuste += m.importo;
+      else if (m.fissaId) mappa[m.data].fisse += m.importo;
+      else mappa[m.data].quotidiane += m.importo;
       mappa[m.data].voci.push(m);
     });
-    var out = [], cq = 0, cf = 0;
+    var out = [], cq = 0, cf = 0, cb = 0;
     Object.keys(mappa).sort().forEach(function (k) {
       var x = mappa[k];
-      cq += x.quotidiane; cf += x.fisse;
-      x.quotidiane = r2(x.quotidiane); x.fisse = r2(x.fisse);
-      x.totale = r2(x.quotidiane + x.fisse);
-      x.cumQuotidiane = r2(cq); x.cumFisse = r2(cf); x.cumulato = r2(cq + cf);
+      cq += x.quotidiane; cf += x.fisse; cb += x.daBuste;
+      x.quotidiane = r2(x.quotidiane); x.fisse = r2(x.fisse); x.daBuste = r2(x.daBuste);
+      x.totale = r2(x.quotidiane + x.fisse + x.daBuste);
+      x.cumQuotidiane = r2(cq); x.cumFisse = r2(cf); x.cumDaBuste = r2(cb);
+      x.cumulato = r2(cq + cf + cb);
       out.push(x);
     });
     return out;
@@ -1331,7 +1356,7 @@ var CALC = (function () {
     var f = finestra(a, oggi), quot = {}, fiss = {};
     dopo(stato.registro, a.saldoBanca.da).forEach(function (m) {
       if (m.tipo !== 'spesa' || m.data < f.da || m.data > oggi) return;
-      if (m.fissaId) fiss[m.fissaId] = (fiss[m.fissaId] || 0) + m.importo;
+      if (m.fissaId && !m.dallaBusta) fiss[m.fissaId] = (fiss[m.fissaId] || 0) + m.importo;
       else { var id = m.categoriaId || 'varie'; quot[id] = (quot[id] || 0) + m.importo; }
     });
     function ordina(tot, elenco) {
@@ -1750,12 +1775,17 @@ function Oggi(p) {
               h(Ico, { icona: o && o.icona, immagine: o && o.immagine }),
               h('div', { className: 'mov-sx' },
                 h('div', { className: 'mov-voce' }, m.voce),
-                h('div', { className: 'mov-ora' }, m.ora + (m.fissaId ? ' · voce fissa' : ''))),
-              h('div', { className: 'mov-dx' }, eur(m.importo)));
+                h('div', { className: 'mov-ora' }, m.ora +
+                (m.dallaBusta ? ' · dalla busta speciale' : (m.fissaId ? ' · voce fissa' : '')))),
+              h('div', { className: 'mov-dx' + (m.dallaBusta ? ' mov-busta' : '') }, eur(m.importo)));
           }),
           h('div', { className: 'riga totale' },
             h('span', { className: 'riga-voce' }, 'Totale di oggi'),
-            h('span', { className: 'riga-val' }, eur(oggiG.totale)))));
+            h('span', { className: 'riga-val' }, eur(oggiG.totale))),
+          oggiG.daBuste > 0
+            ? h('div', { className: 'nota' }, 'di cui ' + eur(oggiG.daBuste) +
+                ' € dalla busta speciale, che non pesano sul budget del giorno')
+            : null));
 }
 
 /* ===================== QUOTIDIANE ===================== */
@@ -1828,7 +1858,9 @@ function Quotidiane(p) {
       return h('div', { key: 'gg-' + g.data },
         h('button', { className: 'giorno', onClick: function () { setApriGiorno(aperto ? null : g.data); } },
           h('span', { className: 'giorno-data' }, CALC.dataIt(g.data)),
-          h('span', { className: 'giorno-det' }, g.fisse > 0 ? eur(g.quotidiane) + ' + ' + eur(g.fisse) : ''),
+          h('span', { className: 'giorno-det' },
+            g.daBuste > 0 ? eur(g.daBuste) + ' da buste'
+                          : (g.fisse > 0 ? eur(g.quotidiane) + ' + ' + eur(g.fisse) : '')),
           h('span', { className: 'giorno-tot' }, eur(CALC.r2(tot)))),
         aperto ? voci.map(function (m) {
           var o = m.fissaId ? trova(cfg.fisse, m.fissaId) : trova(cfg.categorie, m.categoriaId || 'varie');
@@ -1837,8 +1869,10 @@ function Quotidiane(p) {
             h(Ico, { icona: o && o.icona, immagine: o && o.immagine }),
             h('div', { className: 'mov-sx' },
               h('div', { className: 'mov-voce' }, m.voce),
-              h('div', { className: 'mov-ora' }, m.ora + (m.fissaId ? ' · voce fissa' : ' · tocca per correggere'))),
-            h('div', { className: 'mov-dx' }, eur(m.importo)));
+              h('div', { className: 'mov-ora' }, m.ora +
+                (m.dallaBusta ? ' · dalla busta speciale'
+                              : (m.fissaId ? ' · voce fissa' : ' · tocca per correggere')))),
+            h('div', { className: 'mov-dx' + (m.dallaBusta ? ' mov-busta' : '') }, eur(m.importo)));
         }) : null,
         aperto ? h('div', { className: 'giorno-cum' }, 'cumulato a fine giornata: ' + eur(g.cumulato)) : null);
     }));
@@ -2008,6 +2042,52 @@ function DueRighe(p) {
       h('span', { className: 'dr-mat' }, '✎')));
 }
 
+/* Usare la busta speciale: quanto, per cosa, e in che modo.
+   Se l'ho spesa diventa una spesa vera, visibile fra le quotidiane;
+   se la rimetto nel budget torna semplicemente spendibile. */
+function UsaBusta(p) {
+  var b = p.b;
+  var s0 = useState(''); var imp = s0[0], setImp = s0[1];
+  var s1 = useState(''); var nota = s1[0], setNota = s1[1];
+  var s2 = useState(p.categorie[0].id); var cat = s2[0], setCat = s2[1];
+  var s3 = useState(oggiISO()); var data = s3[0], setData = s3[1];
+  var n = num(imp);
+  var troppo = n !== null && n > b.accumulato;
+  var resta = n === null ? b.accumulato : CALC.r2(b.accumulato - n);
+
+  return h('div', { className: 'usa' },
+    h('div', { className: 'campo-eti' }, 'Quanto ne usi?'),
+    h('div', { className: 'usa-alto' },
+      h('input', { className: 'ins-num', inputMode: 'decimal', placeholder: '0,00',
+        value: imp, onChange: function (e) { setImp(e.target.value); } }),
+      h('button', { className: 'chip', onClick: function () { setImp(testoNum(b.accumulato)); } },
+        'tutta')),
+    troppo
+      ? h('div', { className: 'esito esito-avviso' },
+          'In busta ci sono ' + eur(b.accumulato) + ' €: non puoi usarne di più.')
+      : h('div', { className: 'busta-sotto' }, 'resterebbero ' + eur(resta) + ' €'),
+    h('input', { className: 'ins-voce', placeholder: 'Per cosa? (la nota)',
+      value: nota, onChange: function (e) { setNota(e.target.value); } }),
+    h('div', { className: 'chips' }, p.categorie.map(function (x) {
+      return h('button', { key: 'ub-' + x.id, className: 'chip' + (cat === x.id ? ' su' : ''),
+        style: cat === x.id ? { background: x.colore, borderColor: x.colore } : null,
+        onClick: function () { setCat(x.id); } },
+        h(Ico, { icona: x.icona, immagine: x.immagine }), x.nome);
+    })),
+    h(Campo, { eti: 'Giorno', tipo: 'date', valore: data, cambia: setData }),
+    h(Bottone, { testo: 'L\'ho spesa', spento: n === null || n <= 0 || troppo,
+      premi: function () {
+        p.spendi(b, n, nota, cat, data); p.chiudi();
+      } }),
+    h('div', { className: 'nota' },
+      'Comparirà fra le spese quotidiane con la sua nota, ma non toglie ' +
+      'niente al budget del giorno: erano soldi già messi da parte.'),
+    h(Bottone, { testo: 'Oppure rimettila nel budget giornaliero', stile: 'tenue',
+      spento: n === null || n <= 0 || troppo,
+      premi: function () { p.rimetti(b, 'budget', n); p.chiudi(); } }),
+    h(Bottone, { testo: 'Lascia stare', stile: 'tenue', premi: p.chiudi }));
+}
+
 function Buste(p) {
   var c = p.c, cfg = p.stato.config;
   var s0 = useState(null); var paga = s0[0], setPaga = s0[1];
@@ -2117,15 +2197,10 @@ function Buste(p) {
           : null,
         speciale.accumulato > 0
           ? (svuota
-              ? h('div', null,
-                  h('div', { className: 'busta-sotto' }, 'Come la azzero?'),
-                  h(Bottone, { testo: 'Rimetterla nel budget giornaliero',
-                    premi: function () { p.svuotaBusta(speciale, 'budget'); setSvuota(false); } }),
-                  h(Bottone, { testo: 'L\'ho spesa: toglila dal conto', stile: 'tenue',
-                    premi: function () { p.svuotaBusta(speciale, 'spesa'); setSvuota(false); } }),
-                  h(Bottone, { testo: 'Lascia stare', stile: 'tenue',
-                    premi: function () { setSvuota(false); } }))
-              : h(Bottone, { testo: 'Azzera la busta', stile: 'tenue',
+              ? h(UsaBusta, { b: speciale, categorie: cfg.categorie,
+                  spendi: p.spendiDaBusta, rimetti: p.svuotaBusta,
+                  chiudi: function () { setSvuota(false); } })
+              : h(Bottone, { testo: 'Usa questa busta', stile: 'tenue',
                   premi: function () { setSvuota(true); } }))
           : null)) : null,
 
@@ -2728,11 +2803,23 @@ function App() {
       return n;
     });
   }
-  /* Azzera la busta speciale: o torna nel budget, o è stata spesa. */
-  function svuotaBusta(b, modo) {
-    aggiungi([{ tipo: modo === 'spesa' ? 'pagoBusta' : 'svuotaBusta', data: oggi,
-                ora: oraISO(), busta: b.id, importo: b.disponibile,
-                voce: modo === 'spesa' ? 'Speso dalla ' + b.nome : 'Rimesso nel budget' }]);
+  /* Rimettere nel budget: la busta cala, la banca no, quindi quei soldi
+     tornano spendibili. */
+  function svuotaBusta(b, modo, importo) {
+    var q = importo === undefined || importo === null ? b.accumulato : importo;
+    if (q <= 0) return;
+    aggiungi([{ tipo: 'svuotaBusta', data: oggi, ora: oraISO(), busta: b.id,
+                importo: q, voce: 'Rimesso nel budget da ' + b.nome }]);
+  }
+
+  /* Spendere dalla busta: è una spesa vera, con la sua nota e la sua
+     categoria, e si vede fra le quotidiane. Non tocca il budget del
+     giorno perché escono insieme dalla banca e dalla busta. */
+  function spendiDaBusta(b, importo, nota, categoriaId, data) {
+    if (!(importo > 0)) return;
+    aggiungi([{ tipo: 'spesa', data: data || oggi, ora: oraISO(), importo: importo,
+                voce: nota || ('Speso da ' + b.nome), categoriaId: categoriaId,
+                dallaBusta: b.id }]);
   }
   function taraBusta(id, valore) {
     var b = {}; b[id] = valore;
@@ -2872,6 +2959,7 @@ function App() {
   var comuni = {
     stato: stato, c: c, oggi: oggi, giornate: giornate,
     aggiungi: aggiungi, saldaFissa: saldaFissa, pagaBusta: pagaBusta, svuotaBusta: svuotaBusta,
+    spendiDaBusta: spendiDaBusta,
     taraBusta: taraBusta, cambiaConfig: cambiaConfig, registraPaga: registraPaga,
     riconcilia: riconcilia, azzeraTutto: azzeraTutto,
     svuotaMovimenti: svuotaMovimenti,
