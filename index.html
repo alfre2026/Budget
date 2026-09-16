@@ -520,6 +520,17 @@ html, body {
 .usa .ins-num { flex: 1; }
 .mov-busta { color: var(--verde); }
 
+.testa-ver { font-size: 11px; color: var(--tenue); margin-left: 7px; font-variant-numeric: tabular-nums; }
+.testa-ver.nuova { color: var(--verde); font-weight: 650; }
+.testa-ver.nuova::after { content: " •"; }
+.novita { background: var(--foglio); padding: 11px 13px; margin-bottom: 8px; border-left: 3px solid var(--linea); }
+.novita-ora { border-left-color: var(--verde); }
+.novita-cima { display: flex; justify-content: space-between; align-items: baseline; }
+.novita-v { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.novita-data { font-size: 12px; color: var(--tenue); }
+.novita-lista { margin: 6px 0 0; padding-left: 17px; font-size: 13px; color: var(--tenue); line-height: 1.45; }
+.novita-lista li { margin-bottom: 4px; }
+
 </style>
 </head>
 <body>
@@ -1451,6 +1462,36 @@ var CALC = (function () {
 <script>
 /* ===================== BLOCCO DATI ===================== */
 
+var VERSIONE = '1.4';
+
+/* Cosa è cambiato, dalla più recente. Si legge in Impostazioni. */
+var NOVITA = [
+  { v: '1.4', data: '2026-09-16', voci: [
+    'Puoi usare la busta speciale scegliendo quanto, con nota e categoria: diventa una spesa vera fra le quotidiane, ma non toglie niente al budget del giorno.',
+    'Ogni spesa già registrata si può spostare sulla busta speciale, o riportare sul budget, anche a distanza di giorni.',
+    'Nella schermata di modifica di una spesa ora si cambia anche la categoria.'
+  ] },
+  { v: '1.3', data: '2026-09-16', voci: [
+    'Buste riscritte: dichiarato (la regola, a ogni ciclo) e versato (il fatto, in quel ciclo) sono due cifre separate.',
+    'Un solo versamento per busta per ciclo: finiti i versamenti ripetuti.',
+    'Quando registri la paga, quello che avanza dal ciclo chiuso entra da solo nella busta speciale.',
+    'Il tastierino col punto: 50.5 ora vale 50,50 e non più 505.'
+  ] },
+  { v: '1.2', data: '2026-09-15', voci: [
+    'Le spese fisse hanno tre specie: rinnovo automatico, da segnare a mano, a consumo.',
+    'Pagina Calcoli: i tre budget, ogni riga apribile e ogni cifra correggibile.',
+    'La tassa di risparmio non si preleva più: si guadagna coi giorni ed entra in busta a ciclo chiuso.',
+    'Estratto conto: la differenza si spalma sul budget o la assorbe il fondo cassa.'
+  ] },
+  { v: '1.1', data: '2026-09-14', voci: [
+    'Categorie di spesa con icona, immagine e colore.',
+    'Grafico dei giorni, cumulato del ciclo e storico giorno per giorno.'
+  ] },
+  { v: '1.0', data: '2026-09-13', voci: [
+    'Prima versione: budget giornaliero, buste, spese fisse e quotidiane.'
+  ] }
+];
+
 var ICONE = ['🛒','🍕','🍽','☕','🍺','🎬','🎸','🚗','⛽','🚌','🏠','💡','💊','🏥',
              '👕','🎁','📚','🐾','🧸','👶','✂️','🔧','📦','🎓','⚽','🌿','🍎','💶',
              '📱','🧾','🏛','🗑','🐖','🤲','🔥','✉️','🎈','💐'];
@@ -1652,23 +1693,57 @@ function Bottone(p) {
   }, p.testo);
 }
 
-/* Foglio: la finestrella per modificare qualsiasi movimento */
+/* Foglio: la finestrella per modificare qualsiasi movimento.
+   Vale anche all'indietro: una spesa di dieci giorni fa si può
+   spostare sulla busta speciale, o riportare sul budget. */
 function Foglio(p) {
-  var m = p.mov;
+  var m = p.mov, cfg = p.config;
   var s0 = useState(testoNum(m.importo)); var imp = s0[0], setImp = s0[1];
   var s1 = useState(m.data); var dat = s1[0], setDat = s1[1];
   var s2 = useState(m.voce || ''); var voce = s2[0], setVoce = s2[1];
+  var s3 = useState(m.categoriaId || 'varie'); var cat = s3[0], setCat = s3[1];
+  var s4 = useState(m.dallaBusta || ''); var busta = s4[0], setBusta = s4[1];
+  var spesa = m.tipo === 'spesa';
+  var speciale = null;
+  (cfg ? cfg.buste : []).forEach(function (b) { if (b.speciale) speciale = b; });
+
   return h('div', { className: 'velo', onClick: p.chiudi },
     h('div', { className: 'foglio', onClick: function (e) { e.stopPropagation(); } },
       h('div', { className: 'foglio-tit' }, p.titolo || 'Modifica'),
       m.importo !== undefined ? h(Campo, { eti: 'Importo', valore: imp, cambia: setImp }) : null,
       h(Campo, { eti: 'Giorno', tipo: 'date', valore: dat, cambia: setDat }),
-      m.tipo === 'spesa' ? h(Campo, { eti: 'Per cosa', testo: true, valore: voce, cambia: setVoce }) : null,
+      spesa ? h(Campo, { eti: 'Per cosa', testo: true, valore: voce, cambia: setVoce }) : null,
+
+      (spesa && !m.fissaId && cfg) ? h('div', null,
+        h('div', { className: 'campo-eti' }, 'Categoria'),
+        h('div', { className: 'chips' }, cfg.categorie.map(function (x) {
+          return h('button', { key: 'fc-' + x.id, className: 'chip' + (cat === x.id ? ' su' : ''),
+            style: cat === x.id ? { background: x.colore, borderColor: x.colore } : null,
+            onClick: function () { setCat(x.id); } },
+            h(Ico, { icona: x.icona, immagine: x.immagine }), x.nome);
+        }))) : null,
+
+      (spesa && speciale) ? h('div', null,
+        h('div', { className: 'campo-eti' }, 'A carico di'),
+        h('div', { className: 'chips' },
+          h('button', { key: 'ab-b', className: 'chip' + (!busta ? ' su' : ''),
+            onClick: function () { setBusta(''); } }, 'Budget giornaliero'),
+          h('button', { key: 'ab-s', className: 'chip' + (busta ? ' su' : ''),
+            onClick: function () { setBusta(speciale.id); } },
+            h(Ico, { icona: speciale.icona }), speciale.nome)),
+        h('div', { className: 'sotto-campo' },
+          busta ? 'Esce dalla busta speciale: non pesa sul budget del giorno.'
+                : 'Pesa sul budget del giorno, come una spesa qualsiasi.')) : null,
+
       h('div', { className: 'foglio-righe' },
         h(Bottone, { testo: 'Salva', premi: function () {
           var c = { data: dat };
           if (m.importo !== undefined && num(imp) !== null) c.importo = num(imp);
-          if (m.tipo === 'spesa') c.voce = voce;
+          if (spesa) {
+            c.voce = voce;
+            if (!m.fissaId) c.categoriaId = cat;
+            c.dallaBusta = busta || null;
+          }
           p.salva(m.id, c); p.chiudi();
         } }),
         h(Bottone, { testo: 'Annulla', stile: 'tenue', premi: p.chiudi })),
@@ -2670,6 +2745,18 @@ function Impostazioni(p) {
       h(Bottone, { testo: 'Registra la paga', spento: !pgData || num(pgImp) === null,
         premi: function () { p.registraPaga(pgData, num(pgImp), pgInc); } })),
 
+    h('div', { className: 'sez' }, 'Novità'),
+    h('div', { className: 'nota' }, 'Versione ' + VERSIONE + '. Cosa è cambiato, dalla più recente.'),
+    NOVITA.map(function (n, i) {
+      return h('div', { className: 'novita' + (i === 0 ? ' novita-ora' : ''), key: 'nv-' + n.v },
+        h('div', { className: 'novita-cima' },
+          h('span', { className: 'novita-v' }, 'v' + n.v),
+          h('span', { className: 'novita-data' }, CALC.dataIt(n.data))),
+        h('ul', { className: 'novita-lista' }, n.voci.map(function (v, k) {
+          return h('li', { key: 'nl-' + n.v + '-' + k }, v);
+        })));
+    }),
+
     h('div', { className: 'sez pericolo' }, 'Ricominciare da capo'),
     h('div', { className: 'nota' },
       'Due strade diverse. Scrivi AZZERA qui sotto per sbloccarle.'),
@@ -2744,6 +2831,15 @@ function App() {
   var s1 = useState('oggi'); var schermo = s1[0], setSchermo = s1[1];
   var s2 = useState(oggiISO()); var oggi = s2[0], setOggi = s2[1];
   var s3 = useState(null); var movMod = s3[0], setMovMod = s3[1];
+  var s4 = useState(function () {
+    try { return window.localStorage.getItem('registroDiCasa.vista') !== VERSIONE; }
+    catch (e) { return false; }
+  });
+  var novita = s4[0], setNovita = s4[1];
+  function letteNovita() {
+    try { window.localStorage.setItem('registroDiCasa.vista', VERSIONE); } catch (e) {}
+    setNovita(false);
+  }
 
   useEffect(function () { scriviArchivio(stato); }, [stato]);
   useEffect(function () {
@@ -2768,7 +2864,9 @@ function App() {
       return { config: s.config, registro: s.registro.map(function (m) {
         if (m.id !== id) return m;
         var n = {}; for (var k in m) n[k] = m[k];
-        for (var j in cambi) n[j] = cambi[j];
+        for (var j in cambi) {
+          if (cambi[j] === null) delete n[j]; else n[j] = cambi[j];
+        }
         return n;
       }) };
     });
@@ -2996,11 +3094,15 @@ function App() {
   return h('div', { className: 'app' },
     h('header', { className: 'testa' },
       h('span', { className: 'testa-tit' }, 'Registro di casa'),
+      h('span', { className: 'testa-ver' + (novita ? ' nuova' : '') }, 'v' + VERSIONE),
       h('button', { className: 'testa-bot' + (schermo === 'impostazioni' ? ' su' : ''),
-        onClick: function () { setSchermo(schermo === 'impostazioni' ? 'oggi' : 'impostazioni'); } },
+        onClick: function () {
+          if (schermo !== 'impostazioni') letteNovita();
+          setSchermo(schermo === 'impostazioni' ? 'oggi' : 'impostazioni');
+        } },
         schermo === 'impostazioni' ? '✕' : '⚙︎')),
     corpo,
-    movMod ? h(Foglio, { mov: movMod, titolo: 'Correggi il movimento',
+    movMod ? h(Foglio, { mov: movMod, titolo: 'Correggi il movimento', config: stato.config,
       salva: modificaMovimento, elimina: eliminaMovimento,
       chiudi: function () { setMovMod(null); } }) : null,
     h('nav', { className: 'barra-nav' }, voci.map(function (v) {
