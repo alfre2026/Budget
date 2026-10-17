@@ -530,6 +530,20 @@ html, body {
 .novita-data { font-size: 12px; color: var(--tenue); }
 .novita-lista { margin: 6px 0 0; padding-left: 17px; font-size: 13px; color: var(--tenue); line-height: 1.45; }
 .novita-lista li { margin-bottom: 4px; }
+.sett-oggi { margin: 0 0 14px; }
+.consumo-val.rosso { color: var(--rosso); }
+.sett-voci { margin-top: 8px; border-top: 1px solid var(--linea); }
+.sett-mov { display: flex; width: 100%; gap: 10px; align-items: baseline; background: none; border: 0;
+  border-bottom: 1px solid var(--linea); padding: 7px 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.sett-mov-g { font-size: 12px; color: var(--tenue); min-width: 74px; }
+.sett-mov-v { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sett-mov-i { font-variant-numeric: tabular-nums; font-size: 14px; font-weight: 600; }
+.sett-vuoto { font-size: 13px; color: var(--tenue); margin-top: 8px; }
+.sett-bot { margin-top: 10px; width: 100%; padding: 10px; border: 1px dashed var(--linea); background: none;
+  font: inherit; font-size: 14px; color: inherit; cursor: pointer; }
+.sett-oggi .consumo + .consumo { margin-top: 8px; }
+.sposta-zona { margin-top: 10px; }
+
 </style>
 </head>
 <body>
@@ -1169,17 +1183,73 @@ var CALC = (function () {
      manuale — tipo affitto: le segno io
      consumo — carburante, vestiti: si spendono un po' alla volta
                dalla pagina delle quotidiane */
+  /* LA SETTIMANA DI UNA VOCE A CONSUMO.
+     Non è un calcolo nuovo del netto: è solo come il previsto della voce
+     si divide fra le settimane del ciclo (lunedì-domenica, tagliate ai
+     bordi del ciclo). La quota si rifà a ogni lunedì su quello che
+     resta del previsto: se una settimana sfora, le successive hanno
+     meno; se avanza, di più. Così a fine ciclo la somma torna al
+     previsto. */
+  function lunediDi(iso) {
+    var g = new Date(iso + 'T00:00:00Z').getUTCDay();
+    return spostaGiorni(iso, -((g + 6) % 7));
+  }
+  function settimanaVoce(f, registro, inizio, fine, oggi) {
+    var ini = lunediDi(oggi), fin = spostaGiorni(ini, 6);
+    if (ini < inizio) ini = inizio;
+    if (fin > fine) fin = fine;
+    if (oggi < inizio || oggi > fine || fin < ini) return null;
+    /* Uno spostamento fatto prima di questa settimana entra nel residuo
+       e si divide come il resto; uno fatto in questa settimana vale per
+       intero su questa settimana, perché è lì che serviva. */
+    var prima = 0, dentro = 0, spPrima = 0, spDentro = 0, voci = [];
+    registro.forEach(function (m) {
+      if (m.data < inizio || m.data > fine) return;
+      if (m.tipo === 'spostaFissa') {
+        var segno = m.a === f.id ? 1 : (m.da === f.id ? -1 : 0);
+        if (!segno) return;
+        if (m.data < ini) spPrima += segno * m.importo;
+        else if (m.data <= fin) spDentro += segno * m.importo;
+        return;
+      }
+      if (m.fissaId !== f.id || m.tipo !== 'spesa') return;
+      if (m.data < ini) prima += m.importo;
+      else if (m.data <= fin) { dentro += m.importo; voci.push(m); }
+    });
+    var residuo = Math.max(0, f.previsto + spPrima - prima);
+    var giorniSett = giorniFra(ini, fin) + 1;
+    var giorniDaIni = giorniFra(ini, fine) + 1;
+    var quota = r2(residuo * giorniSett / giorniDaIni + spDentro);
+    voci.sort(function (x, y) { return istante(y) < istante(x) ? -1 : 1; });
+    return {
+      inizio: ini, fine: fin, giorni: giorniSett,
+      giorniRimasti: giorniFra(oggi, fin) + 1,
+      spesoPrima: r2(prima), residuoInizio: r2(residuo), spostatoQui: r2(spDentro),
+      quota: quota, speso: r2(dentro), resta: r2(quota - dentro), voci: voci
+    };
+  }
+
   function statoFisse(stato, a, oggi) {
     var inizio = a.ultimaPaga.valore, fine = a.prossimaPaga.valore;
     return stato.config.fisse.map(function (f) {
-      var speso = 0, saldata = false, quando = null, passata = false;
+      var speso = 0, saldata = false, quando = null, passata = false, spostato = 0;
       stato.registro.forEach(function (m) {
-        if (m.fissaId !== f.id) return;
         if (m.data < inizio || m.data > fine) return;
+        /* Spostamento fra voci a consumo: cambia il previsto di questo
+           ciclo, non la regola scritta nella voce. */
+        if (m.tipo === 'spostaFissa' && f.specie === 'consumo') {
+          if (m.a === f.id) spostato += m.importo;
+          if (m.da === f.id) spostato -= m.importo;
+          return;
+        }
+        if (m.fissaId !== f.id) return;
         if (m.tipo === 'spesa') speso += m.importo;
         if (m.tipo === 'saldata') saldata = true;
       });
       speso = r2(speso);
+      spostato = r2(spostato);
+      var base = f;
+      if (spostato) { f = {}; for (var k in base) f[k] = base[k]; f.previsto = r2(base.previsto + spostato); }
       if (f.specie === 'auto') {
         quando = occorrenzaNel(f.giorno, inizio, fine);
         passata = quando !== null && quando < oggi;
@@ -1190,12 +1260,17 @@ var CALC = (function () {
       else daUscire = Math.max(0, f.previsto - speso);
       return {
         id: f.id, nome: f.nome, icona: f.icona, specie: f.specie, previsto: f.previsto,
+        previstoBase: base.previsto, spostato: spostato,
+        disponibile: r2(Math.max(0, f.previsto - speso)),
         giorno: f.giorno || null, quando: quando, passata: passata,
         speso: speso, saldata: saldata,
         pagata: daUscire === 0,
         peso: Math.max(f.previsto, speso),
         daUscire: r2(daUscire),
-        sforo: r2(Math.max(0, speso - f.previsto))
+        sforo: r2(Math.max(0, speso - f.previsto)),
+        settimanale: !!(f.settimanale && f.specie === 'consumo'),
+        settimana: (f.settimanale && f.specie === 'consumo')
+          ? settimanaVoce(base, stato.registro, inizio, fine, oggi) : null
       };
     });
   }
@@ -1498,6 +1573,7 @@ var CALC = (function () {
     cicli: cicli, nomeCiclo: nomeCiclo, storicoCicli: storicoCicli,
     versamentoDelCiclo: versamentoDelCiclo, pianoTrasferimento: pianoTrasferimento,
     statoBuste: statoBuste, statoFisse: statoFisse, catena: catena,
+    lunediDi: lunediDi, settimanaVoce: settimanaVoce,
     scartiPagamenti: scartiPagamenti,
     finestra: finestra, giornate: giornate, perCategoria: perCategoria, verifica: verifica
   };
@@ -1507,10 +1583,17 @@ var CALC = (function () {
 <script>
 /* ===================== BLOCCO DATI ===================== */
 
-var VERSIONE = '1.7';
+var VERSIONE = '1.9';
 
 /* Cosa è cambiato, dalla più recente. Si legge in Impostazioni. */
 var NOVITA = [
+  { v: '1.9', data: '2026-10-17', voci: [
+    'Oggi: ogni voce a consumo può avere il suo riquadro accanto al budget (Fisse → la voce → «Mostra accanto al budget»). Dentro vedi quanto resta, una per una le spese che l\'hanno mossa, e un tasto per registrarne un\'altra lì.',
+    'Fisse: nuovo tasto «Sposta soldi fra queste voci» fra le voci a consumo. Vale solo per il ciclo in corso, si corregge o si annulla toccandolo. Se arriva a una voce settimanale, entra per intero nella settimana in corso.'
+  ] },
+  { v: '1.8', data: '2026-10-17', voci: [
+    'Le voci a consumo si possono seguire settimana per settimana (Fisse → la voce → «Settimana per settimana»). In Oggi compare quanto puoi ancora spendere fino a domenica. La quota si rifà ogni lunedì su quello che resta del previsto: se una settimana sfora, le prossime hanno meno. Il netto e il budget del giorno non cambiano.'
+  ] },
   { v: '1.7', data: '2026-10-14', voci: [
     'Buste: nuovo tasto «Trasferisci tutto». Scegli la busta che riceve e ci vanno i soldi liberi di tutte le altre. Il netto non cambia, e ogni trasferimento si può correggere o annullare dalla pagina Buste.'
   ] },
@@ -1819,6 +1902,62 @@ function Barra(p) {
 
 /* ===================== OGGI ===================== */
 
+/* ===================== SETTIMANA DI UNA VOCE A CONSUMO =====================
+   Legge CALC.statoFisse: qui non si calcola niente. */
+var GIORNI_SETT = ['domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato'];
+function fineSett(w) {
+  if (w.giorniRimasti === 1) return 'fino a stasera';
+  var g = new Date(w.fine + 'T00:00:00Z').getUTCDay();
+  return 'fino a ' + GIORNI_SETT[g] + ' ' + CALC.dataBreve(w.fine);
+}
+/* Una voce a consumo messa in Oggi. Settimanale: la settimana in corso.
+   Altrimenti: il ciclo. Sotto, una per una, le spese che l'hanno mossa. */
+function inOggi(f) {
+  if (!f || f.specie !== 'consumo') return false;
+  return f.inHome === undefined ? !!f.settimanale : !!f.inHome;
+}
+function VoceOggi(p) {
+  var st = p.st, w = st.settimana;
+  var quota, speso, resta, voci, quando;
+  if (w) { quota = w.quota; speso = w.speso; resta = w.resta; voci = w.voci; quando = fineSett(w); }
+  else {
+    quota = st.previsto; speso = st.speso; resta = CALC.r2(st.previsto - st.speso);
+    voci = p.registro.filter(function (m) {
+      return m.tipo === 'spesa' && m.fissaId === st.id && m.data >= p.inizio && m.data <= p.fine;
+    }).sort(function (x, y) { return CALC.istante(y) < CALC.istante(x) ? -1 : 1; });
+    quando = 'fino alla paga';
+  }
+  var sopra = resta < 0;
+  var pieno = quota > 0 ? Math.min(100, Math.round(speso / quota * 100)) : (speso > 0 ? 100 : 0);
+  return h('div', { className: 'consumo sett' },
+    h('div', { className: 'consumo-alto' },
+      h(Ico, { icona: st.icona }),
+      h('span', { className: 'consumo-nome' }, st.nome + (w ? ', questa settimana' : ', in questo ciclo')),
+      h('span', { className: 'consumo-val' + (sopra ? ' rosso' : '') }, eur(resta))),
+    h('div', { className: 'barra' },
+      h('div', { className: 'barra-piena' + (sopra ? ' rossa' : ''), style: { width: pieno + '%' } })),
+    h('div', { className: 'busta-sotto' + (sopra ? ' rosso' : '') },
+      sopra
+        ? 'Spesi ' + eur(speso) + ' su ' + eur(quota) + ': ' + eur(-resta) +
+          (w ? ' in più, le prossime settimane avranno meno' : ' in più, spalmati sui giorni che restano')
+        : 'Puoi ancora spendere ' + eur(resta) + ' ' + quando + ' · spesi ' + eur(speso) + ' su ' + eur(quota)),
+    w && w.spostatoQui ? h('div', { className: 'busta-sotto' },
+      (w.spostatoQui > 0 ? 'Dentro la quota: ' : 'Tolti dalla quota: ') + eur(Math.abs(w.spostatoQui)) +
+      ' spostati questa settimana') : null,
+    voci.length ? h('div', { className: 'sett-voci' }, voci.map(function (m) {
+      return h('button', { key: 'sv-' + m.id, className: 'sett-mov', onClick: function () { p.modificaMov(m); } },
+        h('span', { className: 'sett-mov-g' }, GIORNI_SETT[new Date(m.data + 'T00:00:00Z').getUTCDay()].slice(0, 3) + ' ' + CALC.dataBreve(m.data)),
+        h('span', { className: 'sett-mov-v' }, m.voce || st.nome),
+        h('span', { className: 'sett-mov-i' }, eur(m.importo)));
+    })) : h('div', { className: 'sett-vuoto' }, w ? 'Nessuna spesa questa settimana.' : 'Nessuna spesa in questo ciclo.'),
+    h('button', { className: 'sett-bot', onClick: function () { p.registra(st.id); } }, '+ Registra una spesa qui'));
+}
+function quotaIndicativa(previsto, giorniCiclo) {
+  if (previsto === null || !giorniCiclo) return null;
+  return 'Circa ' + eur(CALC.r2(previsto * 7 / giorniCiclo)) + ' a settimana, in un ciclo di ' + giorniCiclo +
+    ' giorni. Ogni lunedì la quota si rifà su quello che resta.';
+}
+
 function Oggi(p) {
   var c = p.c, cfg = p.stato.config;
   var s0 = useState(''); var imp = s0[0], setImp = s0[1];
@@ -1831,6 +1970,16 @@ function Oggi(p) {
   var resta = CALC.r2(c.budgetGiorno - c.spesoOggi);
   var tono = c.sottoZero ? 'male' : (resta < 0 ? 'avviso' : 'bene');
   var consumo = cfg.fisse.filter(function (f) { return f.specie === 'consumo'; });
+  var inHome = c.fisse.filter(function (x) { return inOggi(trova(cfg.fisse, x.id)); });
+
+  /* Dal riquadro di una voce: la scelgo e porto il dito sull'importo. */
+  function registraSu(id) {
+    setFissa(id); setApri(false);
+    setTimeout(function () {
+      var el = document.querySelector('.ins-num');
+      if (el) { if (el.scrollIntoView) el.scrollIntoView({ block: 'center' }); el.focus(); }
+    }, 30);
+  }
 
   function registra() {
     var n = num(imp);
@@ -1867,6 +2016,14 @@ function Oggi(p) {
       h('div', { className: 'som-cella' },
         h('div', { className: 'som-num' }, c.budgetDomani === null ? '—' : eur(c.budgetDomani)),
         h('div', { className: 'som-eti' }, 'budget di domani'))),
+
+    inHome.length
+      ? h('div', { className: 'sett-oggi' }, inHome.map(function (x) {
+          return h(VoceOggi, { key: 'so-' + x.id, st: x, registro: p.stato.registro,
+            inizio: c.ancora.ultimaPaga.valore, fine: c.ancora.prossimaPaga.valore,
+            modificaMov: p.modificaMov, registra: registraSu });
+        }))
+      : null,
 
     h('div', { className: 'inserisci' },
       h('div', { className: 'ins-alto' },
@@ -1969,7 +2126,13 @@ function Quotidiane(p) {
                      style: { width: pieno + '%' } })),
         h('div', { className: 'busta-sotto' },
           st.sforo > 0 ? 'sforo di ' + eur(st.sforo) + ', spalmato sui giorni che restano'
-                       : 'restano ' + eur(st.daUscire) + ' di previsione'));
+                       : 'restano ' + eur(st.daUscire) + ' di previsione'),
+        st.settimana
+          ? h('div', { className: 'busta-sotto' + (st.settimana.resta < 0 ? ' rosso' : '') },
+              'questa settimana: ' + (st.settimana.resta < 0
+                ? eur(-st.settimana.resta) + ' oltre la quota di ' + eur(st.settimana.quota)
+                : 'restano ' + eur(st.settimana.resta) + ' su ' + eur(st.settimana.quota) + ', ' + fineSett(st.settimana)))
+          : null);
     }),
 
     h('div', { className: 'sez' }, 'Giorno per giorno'),
@@ -2016,10 +2179,14 @@ function Quotidiane(p) {
 
 function Fisse(p) {
   var c = p.c, cfg = p.stato.config;
-  var vuota = { nome: '', icona: '🧾', specie: 'auto', previsto: '', giorno: '' };
+  var vuota = { nome: '', icona: '🧾', specie: 'auto', previsto: '', giorno: '', settimanale: false, inHome: true };
   var s0 = useState(null); var mod = s0[0], setMod = s0[1];
   var s1 = useState(false); var nuovaApri = s1[0], setNuovaApri = s1[1];
   var s2 = useState(vuota); var nuova = s2[0], setNuova = s2[1];
+  var s3 = useState(false); var sposta = s3[0], setSposta = s3[1];
+  var spostamenti = p.stato.registro.filter(function (m) {
+    return m.tipo === 'spostaFissa' && m.data >= c.ancora.ultimaPaga.valore && m.data <= c.ancora.prossimaPaga.valore;
+  }).slice(-6).reverse();
 
   function ponN(k, v) { var n = {}; for (var x in nuova) n[x] = nuova[x]; n[k] = v; setNuova(n); }
 
@@ -2046,13 +2213,26 @@ function Fisse(p) {
             h('div', { className: 'fissa-nome' }, f.nome),
             h('div', { className: 'fissa-sotto' },
               (sp.id === 'auto' ? 'il ' + f.giorno + ' di ogni mese' + (f.quando ? ' → ' + CALC.dataBreve(f.quando) : '')
-                : (sp.id === 'consumo' ? 'speso ' + eur(f.speso) : (f.pagata ? 'pagata' : 'da pagare'))) +
+                : (sp.id === 'consumo' ? 'speso ' + eur(f.speso) +
+                    (f.settimana ? ' · settimana: restano ' + eur(f.settimana.resta) : '') +
+                    (f.spostato ? ' · ' + (f.spostato > 0 ? '+' : '−') + eur(Math.abs(f.spostato)) + ' spostati' : '') +
+                    (inOggi(trova(cfg.fisse, f.id)) ? ' · in Oggi' : '')
+                  : (f.pagata ? 'pagata' : 'da pagare'))) +
               (f.sforo > 0 ? ' · sforo ' + eur(f.sforo) : ''))),
           h('div', { className: 'fissa-dx' },
             h('div', { className: 'fissa-num' }, eur(f.previsto)),
             h('div', { className: 'fissa-eti' + (f.pagata ? ' verde' : '') },
               f.pagata ? 'fatta' : 'da uscire ' + eur(f.daUscire))));
-      }));
+      }),
+      sp.id === 'consumo' && voci.length > 1 ? h('div', { className: 'sposta-zona' },
+        h(Bottone, { testo: 'Sposta soldi fra queste voci', stile: 'tenue', premi: function () { setSposta(true); } }),
+        spostamenti.map(function (m) {
+          return h('button', { className: 'mov', key: 'sf-' + m.id, onClick: function () { p.modificaMov(m); } },
+            h('div', { className: 'mov-sx' },
+              h('div', { className: 'mov-voce' }, m.voce),
+              h('div', { className: 'mov-ora' }, CALC.dataBreve(m.data) + ' · ' + m.ora + ' · tocca per correggere')),
+            h('div', { className: 'mov-dx' }, eur(m.importo)));
+        })) : null);
   }
 
   return h('div', { className: 'schermo' },
@@ -2078,6 +2258,13 @@ function Fisse(p) {
           nuova.specie === 'auto'
             ? h(Campo, { eti: 'Giorno di addebito (1-31)', valore: nuova.giorno, cambia: function (v) { ponN('giorno', v); } })
             : null,
+          nuova.specie === 'consumo'
+            ? h(SceltaSett, { su: nuova.settimanale, cambia: function (v) { ponN('settimanale', v); },
+                previsto: num(nuova.previsto), giorniCiclo: c.giorniCiclo })
+            : null,
+          nuova.specie === 'consumo'
+            ? h(SceltaOggi, { su: nuova.inHome, cambia: function (v) { ponN('inHome', v); } })
+            : null,
           h('div', { className: 'campo-eti' }, 'Icona'),
           h('div', { className: 'griglia-ico' }, ICONE.map(function (i) {
             return h('button', { key: 'ni-' + i, className: 'ico-bot' + (nuova.icona === i ? ' su' : ''),
@@ -2089,14 +2276,83 @@ function Fisse(p) {
                 p.aggiungiFissa({
                   id: idDa(nuova.nome), nome: nuova.nome, icona: nuova.icona, specie: nuova.specie,
                   previsto: num(nuova.previsto),
-                  giorno: nuova.specie === 'auto' ? Math.max(1, Math.min(31, num(nuova.giorno) || 1)) : undefined
+                  giorno: nuova.specie === 'auto' ? Math.max(1, Math.min(31, num(nuova.giorno) || 1)) : undefined,
+                  settimanale: nuova.specie === 'consumo' && !!nuova.settimanale,
+                  inHome: nuova.specie === 'consumo' && !!nuova.inHome
                 });
                 setNuova(vuota); setNuovaApri(false);
               } }),
             h(Bottone, { testo: 'Annulla', stile: 'tenue', premi: function () { setNuovaApri(false); } }))),
 
-    mod ? h(ModificaFissa, { fissa: trova(cfg.fisse, mod), salva: p.modificaFissa,
+    sposta ? h(SpostaFissa, { c: c, sposta: p.spostaFissa, chiudi: function () { setSposta(false); } }) : null,
+
+    mod ? h(ModificaFissa, { fissa: trova(cfg.fisse, mod), salva: p.modificaFissa, giorniCiclo: c.giorniCiclo,
                              elimina: p.eliminaFissa, chiudi: function () { setMod(null); } }) : null);
+}
+
+/* Una voce a consumo si può contare per settimana: il previsto resta
+   quello del ciclo, cambia solo come viene mostrato. */
+function SceltaSett(p) {
+  var nota = p.su ? quotaIndicativa(p.previsto, p.giorniCiclo) : null;
+  return h('div', null,
+    h('div', { className: 'campo-eti' }, 'Come la segui'),
+    h('div', { className: 'chips' },
+      [[false, 'Su tutto il ciclo'], [true, 'Settimana per settimana']].map(function (x) {
+        return h('button', { key: 'ss-' + x[0], className: 'chip' + (!!p.su === x[0] ? ' su' : ''),
+          onClick: function () { p.cambia(x[0]); } }, x[1]);
+      })),
+    nota ? h('div', { className: 'nota' }, nota) : null);
+}
+
+function SceltaOggi(p) {
+  return h('div', null,
+    h('div', { className: 'campo-eti' }, 'In Oggi'),
+    h('div', { className: 'chips' },
+      [[true, 'Mostra accanto al budget'], [false, 'Non mostrare']].map(function (x) {
+        return h('button', { key: 'so-' + x[0], className: 'chip' + (!!p.su === x[0] ? ' su' : ''),
+          onClick: function () { p.cambia(x[0]); } }, x[1]);
+      })));
+}
+
+/* Spostare soldi fra voci a consumo, solo per questo ciclo. Si sposta
+   quello che la voce d'origine non ha ancora speso. */
+function SpostaFissa(p) {
+  var voci = p.c.fisse.filter(function (f) { return f.specie === 'consumo'; });
+  var s0 = useState(null); var da = s0[0], setDa = s0[1];
+  var s1 = useState(null); var a = s1[0], setA = s1[1];
+  var s2 = useState(''); var imp = s2[0], setImp = s2[1];
+  var fDa = da ? trova(voci, da) : null, fA = a ? trova(voci, a) : null;
+  var n = num(imp);
+  var ok = fDa && fA && da !== a && n !== null && n > 0 && n <= fDa.disponibile + 0.001;
+  return h('div', { className: 'velo', onClick: p.chiudi },
+    h('div', { className: 'foglio', onClick: function (e) { e.stopPropagation(); } },
+      h('div', { className: 'foglio-tit' }, 'Sposta soldi fra voci a consumo'),
+      h('div', { className: 'nota' }, 'Vale solo per questo ciclo: il previsto scritto nelle voci non cambia.'),
+      h('div', { className: 'campo-eti' }, 'Da'),
+      h('div', { className: 'chips' }, voci.map(function (f) {
+        return h('button', { key: 'sd-' + f.id, className: 'chip' + (da === f.id ? ' su' : ''),
+          disabled: f.disponibile <= 0,
+          onClick: function () { setDa(f.id); if (a === f.id) setA(null); } },
+          h(Ico, { icona: f.icona }), f.nome + ' · ' + eur(f.disponibile));
+      })),
+      h('div', { className: 'campo-eti' }, 'A'),
+      h('div', { className: 'chips' }, voci.filter(function (f) { return f.id !== da; }).map(function (f) {
+        return h('button', { key: 'sa-' + f.id, className: 'chip' + (a === f.id ? ' su' : ''),
+          onClick: function () { setA(f.id); } }, h(Ico, { icona: f.icona }), f.nome);
+      })),
+      h(Campo, { eti: 'Quanto', valore: imp, cambia: setImp }),
+      fDa ? h('button', { className: 'ins-piu', onClick: function () { setImp(testoNum(fDa.disponibile)); } },
+        'Tutto il disponibile: ' + eur(fDa.disponibile)) : null,
+      fDa && n !== null && n > fDa.disponibile + 0.001
+        ? h('div', { className: 'esito esito-avviso' }, 'In ' + fDa.nome + ' ne restano solo ' + eur(fDa.disponibile) + '.') : null,
+      ok ? h('div', { className: 'esito' },
+        fDa.nome + ' passa da ' + eur(fDa.previsto) + ' a ' + eur(CALC.r2(fDa.previsto - n)) + ', ' +
+        fA.nome + ' da ' + eur(fA.previsto) + ' a ' + eur(CALC.r2(fA.previsto + n)) + '.' +
+        (fA.sforo > 0 ? ' Copre ' + eur(Math.min(n, fA.sforo)) + ' di sforo.' : '') +
+        (fA.settimanale ? ' Entrano per intero nella settimana in corso.' : '')) : null,
+      h('div', { className: 'foglio-righe' },
+        h(Bottone, { testo: 'Sposta', spento: !ok, premi: function () { p.sposta(da, a, n); p.chiudi(); } }),
+        h(Bottone, { testo: 'Annulla', stile: 'tenue', premi: p.chiudi }))));
 }
 
 function ModificaFissa(p) {
@@ -2106,6 +2362,8 @@ function ModificaFissa(p) {
   var s2 = useState(testoNum(f.giorno)); var gio = s2[0], setGio = s2[1];
   var s3 = useState(f.specie); var sp = s3[0], setSp = s3[1];
   var s4 = useState(f.icona); var ico = s4[0], setIco = s4[1];
+  var s5 = useState(!!f.settimanale); var sett = s5[0], setSett = s5[1];
+  var s6 = useState(inOggi(f)); var home = s6[0], setHome = s6[1];
   return h('div', { className: 'velo', onClick: p.chiudi },
     h('div', { className: 'foglio', onClick: function (e) { e.stopPropagation(); } },
       h('div', { className: 'foglio-tit' }, 'Modifica voce fissa'),
@@ -2118,6 +2376,8 @@ function ModificaFissa(p) {
             onClick: function () { setSp(x[0]); } }, x[1]);
         })),
       sp === 'auto' ? h(Campo, { eti: 'Giorno di addebito', valore: gio, cambia: setGio }) : null,
+      sp === 'consumo' ? h(SceltaSett, { su: sett, cambia: setSett, previsto: num(prev), giorniCiclo: p.giorniCiclo }) : null,
+      sp === 'consumo' ? h(SceltaOggi, { su: home, cambia: setHome }) : null,
       h('div', { className: 'campo-eti' }, 'Icona'),
       h('div', { className: 'griglia-ico' }, ICONE.map(function (i) {
         return h('button', { key: 'mi-' + i, className: 'ico-bot' + (ico === i ? ' su' : ''),
@@ -2126,7 +2386,9 @@ function ModificaFissa(p) {
       h('div', { className: 'foglio-righe' },
         h(Bottone, { testo: 'Salva', premi: function () {
           p.salva(f.id, { nome: nome, previsto: num(prev), specie: sp, icona: ico,
-                          giorno: sp === 'auto' ? Math.max(1, Math.min(31, num(gio) || 1)) : undefined });
+                          giorno: sp === 'auto' ? Math.max(1, Math.min(31, num(gio) || 1)) : undefined,
+                          settimanale: sp === 'consumo' && sett,
+                          inHome: sp === 'consumo' && home });
           p.chiudi();
         } }),
         h(Bottone, { testo: 'Annulla', stile: 'tenue', premi: p.chiudi })),
@@ -3052,6 +3314,16 @@ function App() {
     }));
   }
 
+  /* Spostare soldi fra due voci a consumo: un movimento, correggibile
+     o annullabile come gli altri. Cambia il previsto del ciclo, non la
+     regola della voce. */
+  function spostaFissa(daId, aId, importo) {
+    var da = trova(stato.config.fisse, daId), a = trova(stato.config.fisse, aId);
+    if (!da || !a || !(importo > 0)) return;
+    aggiungi([{ tipo: 'spostaFissa', data: oggi, ora: oraISO(), da: daId, a: aId,
+                importo: CALC.r2(importo), voce: 'Da ' + da.nome + ' a ' + a.nome }]);
+  }
+
   /* Spendere dalla busta: è una spesa vera, con la sua nota e la sua
      categoria, e si vede fra le quotidiane. Non tocca il budget del
      giorno perché escono insieme dalla banca e dalla busta. */
@@ -3199,7 +3471,7 @@ function App() {
   var comuni = {
     stato: stato, c: c, oggi: oggi, giornate: giornate,
     aggiungi: aggiungi, saldaFissa: saldaFissa, pagaBusta: pagaBusta, svuotaBusta: svuotaBusta,
-    spendiDaBusta: spendiDaBusta, trasferisciTutto: trasferisciTutto,
+    spendiDaBusta: spendiDaBusta, trasferisciTutto: trasferisciTutto, spostaFissa: spostaFissa,
     taraBusta: taraBusta, cambiaConfig: cambiaConfig, registraPaga: registraPaga,
     riconcilia: riconcilia, azzeraTutto: azzeraTutto,
     svuotaMovimenti: svuotaMovimenti,
